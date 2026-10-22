@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Focus Suite — YouTube keyword lists</title>
+<style>
+  :root { --bg:#0a0c12; --line:rgba(255,255,255,.1); --ink:#f6f7fa; --muted:#8d95a8; --faint:#5f687c; --brand:#818cf8; --mint:#4ade80; --coral:#fb7185; --sand:#f3d6a6; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 36px 22px 80px; }
+  h1 { font-size: 24px; letter-spacing:-.03em; margin:0 0 4px; }
+  .lead { color: var(--muted); margin: 0 0 26px; max-width: 640px; }
+  .grid { display:grid; gap:14px; }
+  .card { border:1px solid var(--line); border-radius:16px; background:rgba(255,255,255,.025); padding:16px; }
+  .card h2 { margin:0; font-size:14px; display:flex; align-items:center; gap:8px; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .card p { margin:4px 0 10px; color:var(--muted); font-size:12.5px; }
+  textarea { width:100%; min-height:150px; background:rgba(0,0,0,.3); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px; font:12.5px/1.6 Consolas, ui-monospace, monospace; resize:vertical; outline:none; }
+  textarea:focus, select:focus { border-color:rgba(129,140,248,.6); }
+  .meta { display:flex; justify-content:space-between; font:11px Consolas, monospace; color:var(--faint); margin-top:6px; }
+  .meta .warn { color: var(--coral); }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  select { background:rgba(0,0,0,.3); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 9px; font:inherit; }
+  label.check { display:flex; align-items:center; gap:8px; cursor:pointer; }
+  input[type=checkbox] { accent-color:#6366f1; width:16px; height:16px; }
+  button { font:600 13px inherit; border:1px solid var(--line); background:rgba(255,255,255,.06); color:var(--ink); padding:9px 14px; border-radius:10px; cursor:pointer; }
+  button:hover { background:rgba(255,255,255,.12); }
+  button.primary { background:#f6f7fa; color:#06070b; border-color:transparent; }
+  button.danger:hover { border-color:rgba(251,113,133,.5); color:var(--coral); }
+  .bar { position:sticky; bottom:0; margin-top:18px; padding:12px 0; background:linear-gradient(0deg,var(--bg) 70%,transparent); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  #status { color:var(--mint); font-size:12.5px; margin-left:auto; min-height:18px; }
+  #status.err { color: var(--coral); }
+  .rules { font-size:12px; color:var(--muted); margin:0; padding-left:18px; }
+  .rules li { margin:3px 0; }
+  code { font-family:Consolas, monospace; color:#d6dae3; }
+</style>
+</head>
+<body>
+<main>
+  <h1>YouTube keyword lists</h1>
+  <p class="lead">One shared brain: these lists drive the on-page filtering <b>and</b> how Focus Suite classifies the videos you actually watch (waste / educational). One keyword per line, or comma-separated. Settings sync across your Chrome profile.</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2><span class="dot" style="background:var(--mint)"></span> Allowed — always shown</h2>
+      <p>Wins over everything, including Blocked and Strict mode. Use it for false positives (<code>failsafe</code> vs <code>fail</code>) and shows you love.</p>
+      <textarea id="allowed" spellcheck="false"></textarea>
+      <div class="meta"><span id="allowedCount"></span><span id="allowedSize"></span></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot" style="background:var(--brand)"></span> Good topics — Strict mode allows</h2>
+      <p>In Strict mode only these (plus Allowed) are shown. Also counted as educational when the tracker classifies a video.</p>
+      <textarea id="good" spellcheck="false"></textarea>
+      <div class="meta"><span id="goodCount"></span><span id="goodSize"></span></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot" style="background:var(--coral)"></span> Blocked — hidden in Balanced and Strict</h2>
+      <p>Hidden from results, home, subscriptions, channels and playlists. Also counted as <b>waste</b> by the tracker's 40-minute entertainment rule.</p>
+      <textarea id="blocked" spellcheck="false"></textarea>
+      <div class="meta"><span id="blockedCount"></span><span id="blockedSize"></span></div>
+    </section>
+
+    <section class="card">
+      <h2>Search override</h2>
+      <p>A search that matches the right list skips filtering for that results page.</p>
+      <div class="row">
+        <select id="queryMode">
+          <option value="allowed+good">Allowed + good topics (default)</option>
+          <option value="allowed">Allowed only</option>
+          <option value="never">Never — always filter</option>
+        </select>
+        <label class="check"><input type="checkbox" id="stillBlocks"> Keep hiding hard-blocked keywords during an override</label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Matching rules</h2>
+      <ul class="rules">
+        <li>Case-insensitive. Left word boundary only: <code>focus</code> matches “focusing”, <code>art</code> does not match “smart”.</li>
+        <li>Multi-word keywords match spaces or hyphens: <code>geo tv</code> matches “geo-tv”.</li>
+        <li>Special characters are safe: <code>18+</code>, <code>c++</code>, <code>node.js</code>.</li>
+        <li>Allowed always wins over Blocked.</li>
+      </ul>
+    </section>
+  </div>
+
+  <div class="bar">
+    <button class="primary" id="save">Save lists</button>
+    <button id="export">Export JSON</button>
+    <button id="importBtn">Import JSON…</button>
+    <input id="importFile" type="file" accept="application/json" hidden />
+    <button class="danger" id="reset">Reset to defaults</button>
+    <span id="status" role="status"></span>
+  </div>
+</main>
+<script src="yt-defaults.js"></script>
+<script src="yt-engine.js"></script>
+<script src="options.js"></script>
+</body>
+</html>

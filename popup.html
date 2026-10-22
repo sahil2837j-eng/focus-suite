@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Focus Tracker</title>
+<link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="topbar"></div>
+
+  <header class="head">
+    <div class="brand">
+      <img src="icons/icon48.png" alt="" width="26" height="26" />
+      <div>
+        <p class="brand-name">Focus Suite</p>
+        <p class="brand-sub">v3.0.0 · 24H · 7/7 · YT FOCUS</p>
+      </div>
+    </div>
+    <div class="head-right">
+      <span id="trackingLabel" class="mono dim">ON</span>
+      <button id="trackingSwitch" class="switch on" role="switch" aria-checked="true" aria-label="Toggle tracking"><span></span></button>
+    </div>
+  </header>
+
+  <div id="pausedBanner" class="paused hidden">
+    <span>Tracking paused · nothing is being counted.</span>
+    <button id="resumeBtn" class="mini-btn">Resume</button>
+  </div>
+
+  <nav class="tabs" id="tabs">
+    <button data-tab="today" class="tab active">Today</button>
+    <button data-tab="sites" class="tab">Sites</button>
+    <button data-tab="blocks" class="tab">Blocks</button>
+    <button data-tab="more" class="tab">More</button>
+  </nav>
+
+  <main id="view" class="view">
+    <p class="dim loading">Loading today…</p>
+  </main>
+
+  <!-- PAUSE friction overlay -->
+  <div id="pauseOverlay" class="overlay hidden">
+    <div class="overlay-card">
+      <div class="row-between">
+        <p class="label">Two-step pause</p>
+        <button id="pauseCancelTop" class="x" aria-label="Cancel">✕</button>
+      </div>
+      <p class="pause-copy">A stray tap can't end a habit. Type <span class="mono coral">PAUSE</span> to pause tracking.</p>
+      <input id="pauseInput" class="pause-input mono" placeholder="PAUSE" autocomplete="off" />
+      <div class="row gap">
+        <button id="pauseCancel" class="btn ghost flex1">Keep tracking</button>
+        <button id="pauseConfirm" class="btn danger flex1" disabled>Pause tracking</button>
+      </div>
+      <p class="hint">Pausing tracking never pauses a locked block. Block terms run on the clock.</p>
+    </div>
+  </div>
+
+  <!-- toast -->
+  <div id="toast" class="toast hidden">
+    <div class="toast-body">
+      <p id="toastText" class="toast-text"></p>
+      <p id="toastSub" class="toast-sub"></p>
+    </div>
+    <button id="toastUndo" class="mini-btn hidden">Undo</button>
+    <button id="toastClose" class="x" aria-label="Dismiss">✕</button>
+  </div>
+
+  <script src="yt-defaults.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+{
+  "manifest_version": 3,
+  "name": "Focus Suite — Time Tracker & YouTube Focus",
+  "short_name": "Focus Suite",
+  "version": "3.0.0",
+  "minimum_chrome_version": "110",
+  "description": "Focus Tracker + YouTube Focus in one extension: honest time tracking, locked 24-hour blocks (no Sunday unlock), nightly reviews, and a distraction-free YouTube with one shared keyword brain. Local-first.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "alarms",
+    "idle",
+    "declarativeNetRequest",
+    "favicon",
+    "notifications",
+    "downloads"
+  ],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Focus Suite",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://www.youtube.com/*", "*://m.youtube.com/*"],
+      "js": ["yt-defaults.js", "yt-engine.js", "youtube-focus.js"],
+      "css": ["youtube-focus.css"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "*://www.youtube.com/*",
+        "*://m.youtube.com/*",
+        "*://music.youtube.com/*"
+      ],
+      "js": ["youtube-analyzer.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

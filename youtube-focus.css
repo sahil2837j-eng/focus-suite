@@ -1,0 +1,83 @@
+/* Focus Suite 3.0 — youtube-focus.css
+   Every hiding rule in one file. Flag-driven rules read data attributes the
+   content script sets from the first-paint cache, so nothing flashes.
+   Namespace: ytf-* (no collisions with YouTube or other extensions). */
+
+/* ---- verdict classes set by youtube-focus.js ---- */
+.ytf-hard-hidden { display: none !important; } /* blocked channel / Shorts card: never revealable */
+html:not(.ytf-reveal) .ytf-hidden { display: none !important; }
+html.ytf-reveal .ytf-hidden { opacity: 0.5; outline: 1px dashed rgba(251, 113, 133, 0.55); outline-offset: -1px; }
+
+/* ---- promos: always hidden ---- */
+#masthead-ad, ytd-ad-slot-renderer, ytd-in-feed-ad-layout-renderer, ytd-display-ad-renderer,
+ytd-promoted-sparkles-web-renderer, ytd-promoted-video-renderer, ytd-banner-promo-renderer,
+ytd-statement-banner-renderer, ytd-merch-shelf-renderer, ytd-brand-video-singleton-renderer,
+ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"] {
+  display: none !important;
+}
+
+/* ---- home feed ---- */
+html[data-ytf-home="1"] ytd-browse[page-subtype="home"] ytd-rich-grid-renderer,
+html[data-ytf-home="1"] ytd-browse[page-subtype="home"] ytd-feed-filter-chip-bar-renderer {
+  display: none !important;
+}
+html[data-ytf-home="1"] ytd-browse[page-subtype="home"]::before {
+  content: "\1F50D  Search for what you actually need";
+  display: block;
+  padding: 120px 24px;
+  text-align: center;
+  font: 500 20px/1.4 "Roboto", system-ui, sans-serif;
+  color: #aaa;
+}
+
+/* ---- sidebar / related / end screens ---- */
+html[data-ytf-side="1"] ytd-watch-flexy #related,
+html[data-ytf-side="1"] ytd-watch-next-secondary-results-renderer,
+html[data-ytf-side="1"] yt-related-chip-cloud-renderer,
+html[data-ytf-side="1"] .ytp-endscreen-content,
+html[data-ytf-side="1"] .ytp-ce-element,
+html[data-ytf-side="1"] .ytp-pause-overlay,
+html[data-ytf-side="1"] .ytp-autonav-endscreen-countdown-overlay,
+html[data-ytf-side="1"] .ytp-suggested-action,
+html[data-ytf-side="1"] ytd-miniplayer {
+  display: none !important;
+}
+
+/* ---- Shorts: nav, shelves, cards, channel tab ---- */
+html[data-ytf-shorts="1"] ytd-guide-entry-renderer:has(a[title="Shorts"]),
+html[data-ytf-shorts="1"] ytd-guide-entry-renderer:has(a[href="/shorts"]),
+html[data-ytf-shorts="1"] ytd-mini-guide-entry-renderer[aria-label="Shorts"],
+html[data-ytf-shorts="1"] ytd-reel-shelf-renderer,
+html[data-ytf-shorts="1"] ytd-rich-shelf-renderer[is-shorts],
+html[data-ytf-shorts="1"] ytd-rich-section-renderer:has(ytd-reel-shelf-renderer),
+html[data-ytf-shorts="1"] ytd-rich-item-renderer:has(a[href^="/shorts/"]),
+html[data-ytf-shorts="1"] ytd-video-renderer:has(a[href^="/shorts/"]),
+html[data-ytf-shorts="1"] ytd-grid-video-renderer:has(a[href^="/shorts/"]),
+html[data-ytf-shorts="1"] ytm-shorts-lockup-view-model,
+html[data-ytf-shorts="1"] ytm-shorts-lockup-view-model-v2,
+html[data-ytf-shorts="1"] grid-shelf-view-model:has(a[href^="/shorts/"]),
+html[data-ytf-shorts="1"] yt-tab-shape[tab-title="Shorts"] {
+  display: none !important;
+}
+
+/* ---- injected UI ---- */
+#ytf-pill {
+  position: fixed; left: 18px; bottom: 18px; z-index: 2147483000;
+  border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 999px;
+  background: rgba(20, 24, 36, 0.96); color: #f1f1f1;
+  font: 500 12.5px/1 "Roboto", system-ui, sans-serif; padding: 10px 14px; cursor: pointer;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+#ytf-pill:hover { background: rgba(40, 46, 66, 0.98); }
+
+#ytf-shorts-screen {
+  position: fixed; inset: 0; z-index: 2147483600; background: #0f0f0f; color: #f1f1f1;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  font-family: "Roboto", system-ui, sans-serif;
+}
+#ytf-shorts-screen .ytf-big { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+#ytf-shorts-screen .ytf-sub { margin: 10px 0 22px; color: #aaa; font-size: 14px; max-width: 360px; }
+#ytf-shorts-screen a {
+  display: inline-block; padding: 10px 18px; border-radius: 999px; background: #f1f1f1;
+  color: #0f0f0f; text-decoration: none; font-weight: 600; font-size: 13px;
+}

@@ -6,6 +6,16 @@ brain — and the **2.0 block policy** carried through: every automatic block is
 **exactly 24 hours**, enforced **7 days a week**, and the clock is the only unlock.
 The Sunday exemption is deleted.
 
+## Demo
+
+<img src="assets/showcase.gif" alt="Focus Suite 3.0 showcase — Today, Sites and Blocks" width="100%">
+
+*The 12-second tour: real popup, seeded local state, no network.*
+
+<img src="assets/proof.gif" alt="Focus Suite 3.0 proof — the 24-hour automatic term and YouTube Focus" width="100%">
+
+*The proof: the 24-hour automatic term and the YouTube Focus card, on the real popup.*
+
 ## Install (nothing to paste)
 
 1. Unzip somewhere permanent (e.g. `~/extensions/focus-suite`). Icons are included.

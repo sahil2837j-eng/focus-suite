@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Focus Suite — demo stage</title>
+<style>
+  :root {
+    --accent: #818cf8;
+    --ink: #f5f7ff;
+    --muted: #98a4bb;
+    --line: rgba(255, 255, 255, .09);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1280px; height: 800px; overflow: hidden; }
+  body {
+    background: #06080f;
+    color: var(--ink);
+    font-family: Inter, Cantarell, "Noto Sans", "DejaVu Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .stage {
+    position: relative;
+    width: 1280px;
+    height: 800px;
+    overflow: hidden;
+    background:
+      radial-gradient(ellipse 75% 60% at 88% 40%, rgba(45, 55, 100, .32), transparent 70%),
+      radial-gradient(ellipse 55% 50% at 5% 92%, rgba(82, 36, 92, .18), transparent 70%),
+      #06080f;
+  }
+  .stage::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,.038) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.038) 1px, transparent 1px);
+    background-size: 64px 64px;
+    mask-image: radial-gradient(ellipse 75% 75% at 55% 45%, #000 20%, transparent 90%);
+    opacity: .55;
+    pointer-events: none;
+  }
+  .glow {
+    position: absolute;
+    width: 1000px;
+    height: 1000px;
+    right: -310px;
+    top: -250px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(129, 140, 248, .22), transparent 64%);
+    filter: blur(28px);
+    pointer-events: none;
+  }
+  .glow.two {
+    width: 700px;
+    height: 700px;
+    left: -320px;
+    right: auto;
+    top: auto;
+    bottom: -430px;
+    background: radial-gradient(circle, rgba(34, 211, 238, .12), transparent 65%);
+  }
+  .noise {
+    position: absolute;
+    inset: 0;
+    opacity: .025;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    pointer-events: none;
+  }
+
+  header {
+    position: absolute;
+    top: 28px;
+    left: 60px;
+    right: 58px;
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    z-index: 5;
+  }
+  .mark {
+    width: 33px;
+    height: 33px;
+    border-radius: 9px;
+    object-fit: cover;
+    box-shadow: 0 4px 16px rgba(0,0,0,.35);
+  }
+  .brand { display: flex; align-items: baseline; gap: 9px; }
+  .brand b {
+    font-size: 13.5px;
+    font-weight: 760;
+    letter-spacing: 2.1px;
+    text-transform: uppercase;
+  }
+  .brand span {
+    font: 600 10px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    color: var(--accent);
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    background: color-mix(in srgb, var(--accent) 9%, transparent);
+    padding: 4px 6px;
+    border-radius: 5px;
+  }
+  .edition {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: #74819b;
+    font: 600 10px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+  }
+  .edition i {
+    display: block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 10px #34d399;
+  }
+
+  .copy {
+    position: absolute;
+    top: 210px;
+    left: 64px;
+    width: 600px;
+    min-height: 540px;
+    z-index: 4;
+  }
+  .scene-copy {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    will-change: opacity, transform;
+  }
+  .eyebrow {
+    color: var(--accent);
+    font: 700 11.5px/1.2 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: 3.2px;
+    text-transform: uppercase;
+  }
+  h1 {
+    margin: 16px 0 17px;
+    max-width: 590px;
+    font-size: 49px;
+    line-height: 1.035;
+    letter-spacing: -1.8px;
+    font-weight: 800;
+    color: #fbfcff;
+  }
+  .lede {
+    max-width: 570px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 17px;
+    line-height: 1.58;
+    letter-spacing: -.1px;
+  }
+  .stat-row {
+    display: flex;
+    align-items: baseline;
+    gap: 18px;
+    margin-top: 31px;
+  }
+  .stat {
+    color: #fff;
+    font-size: 76px;
+    line-height: .88;
+    letter-spacing: -4px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 8px 30px rgba(0,0,0,.4);
+  }
+  .stat-label {
+    max-width: 185px;
+    color: #c7d0e2;
+    font-size: 13px;
+    line-height: 1.35;
+    letter-spacing: .1px;
+  }
+  .meter {
+    width: 350px;
+    height: 4px;
+    margin-top: 19px;
+    border-radius: 99px;
+    background: rgba(255,255,255,.1);
+    overflow: hidden;
+  }
+  .meter i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--accent), color-mix(in srgb, var(--accent) 50%, #fff));
+    box-shadow: 0 0 14px var(--accent);
+  }
+  .meter-label {
+    margin-top: 8px;
+    color: #68748c;
+    font: 600 10px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: .7px;
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 31px;
+    max-width: 560px;
+  }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255,255,255,.035);
+    color: #ced6e7;
+    font-size: 11.5px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .chip::before {
+    content: "";
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .device {
+    position: absolute;
+    top: 38px;
+    right: 56px;
+    width: 500px;
+    border-radius: 15px;
+    background: #0b0f18;
+    border: 1px solid rgba(255,255,255,.1);
+    box-shadow:
+      0 48px 110px rgba(0,0,0,.62),
+      0 0 0 1px rgba(0,0,0,.45),
+      0 0 90px rgba(88, 101, 242, .12);
+    overflow: hidden;
+    z-index: 3;
+  }
+  .bar {
+    height: 34px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 11px;
+    background: #111725;
+    border-bottom: 1px solid rgba(255,255,255,.07);
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #39445a; }
+  .dot.r { background: #f87171; opacity: .8; }
+  .dot.y { background: #fbbf24; opacity: .8; }
+  .dot.g { background: #34d399; opacity: .8; }
+  .addr {
+    flex: 1;
+    text-align: center;
+    color: #7e8aa2;
+    font: 500 9.5px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: .2px;
+  }
+  .bar .secure {
+    color: #64728a;
+    font: 700 8.5px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: .8px;
+    border: 1px solid rgba(255,255,255,.09);
+    border-radius: 4px;
+    padding: 3px 4px;
+  }
+  .screen {
+    position: relative;
+    height: 680px;
+    overflow: hidden;
+    background: #0a0d14;
+  }
+  .screen img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 500px;
+    height: auto;
+    opacity: 0;
+    will-change: opacity;
+  }
+  .screen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(255,255,255,.035), transparent 11%, transparent 90%, rgba(0,0,0,.2));
+    pointer-events: none;
+  }
+
+  footer {
+    position: absolute;
+    left: 64px;
+    right: 56px;
+    bottom: 23px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    color: #5f6b81;
+    font: 600 10px/1 "DejaVu Sans Mono", ui-monospace, monospace;
+    letter-spacing: 1.25px;
+    z-index: 6;
+  }
+  .segments { display: flex; gap: 5px; }
+  .seg {
+    width: 42px;
+    height: 2px;
+    border-radius: 99px;
+    background: rgba(255,255,255,.11);
+    overflow: hidden;
+  }
+  .seg i {
+    display: block;
+    width: 0;
+    height: 100%;
+    background: var(--accent);
+  }
+  .footnote { margin-left: auto; color: #4d5870; letter-spacing: .8px; }
+  .proof .copy { top: 188px; }
+  .proof h1 { font-size: 45px; letter-spacing: -1.5px; }
+  .proof .lede { font-size: 16.5px; max-width: 585px; }
+  .proof .stat { font-size: 69px; letter-spacing: -3.5px; }
+</style>
+</head>
+<body>
+<div class="stage" id="stage">
+  <div class="glow" id="glow"></div>
+  <div class="glow two"></div>
+  <div class="noise"></div>
+
+  <header>
+    <img class="mark" src="../../icons/icon48.png" alt="">
+    <div class="brand"><b>Focus Suite</b><span>3.0</span></div>
+    <div class="edition"><i></i> Local-first · MV3</div>
+  </header>
+
+  <main class="copy" id="copy"></main>
+
+  <section class="device">
+    <div class="bar">
+      <span class="dot r"></span><span class="dot y"></span><span class="dot g"></span>
+      <span class="addr" id="addr">Focus Suite · Today</span>
+      <span class="secure">EXT</span>
+    </div>
+    <div class="screen" id="screen"></div>
+  </section>
+
+  <footer>
+    <span id="count">01 / 03</span>
+    <div class="segments" id="segments"></div>
+    <span class="footnote">Real popup · seeded local state · no network</span>
+  </footer>
+</div>
+
+<script>
+  const STORIES = {
+    showcase: {
+      duration: 12,
+      scenes: [
+        {
+          img: 'today.png', accent: '#818cf8', device: 'Focus Suite · Today',
+          eyebrow: '01 / Today', title: 'Time you can trust.',
+          body: 'Focused window only. Idle-aware. Nothing is counted just because a tab was left open in the background.',
+          stat: '3h 07m', label: 'focused today', bar: '71%', barLabel: 'goal 104 / 120 min',
+          chips: ['0 bytes sent', '5–8 PM productive goal', '6 sites tracked']
+        },
+        {
+          img: 'sites.png', accent: '#22d3ee', device: 'Focus Suite · Sites',
+          eyebrow: '02 / Sites', title: 'Every site. Every path.',
+          body: 'A 90-day local ledger, path-level study rules, and a one-click block when a site stops earning its place.',
+          stat: '90d', label: 'local ledger', bar: '64%', barLabel: 'this week',
+          chips: ['Longest path wins', 'Week rhythm heatmap', 'One-click block']
+        },
+        {
+          img: 'blocks.png', accent: '#fb7185', device: 'Focus Suite · Blocks',
+          eyebrow: '03 / Blocks', title: 'Boundaries with teeth.',
+          body: 'Automatic detox is exactly 24 hours. The clock is the only unlock — and YouTube Focus runs on the same keyword brain.',
+          stat: '24h', label: 'automatic term', bar: '78%', barLabel: '18h 42m left',
+          chips: ['7/7 · Sundays included', 'No early lift', 'On-device YouTube Focus']
+        }
+      ]
+    },
+    proof: {
+      duration: 10,
+      scenes: [
+        {
+          img: 'blocks-scrolled.png', accent: '#fb7185', device: 'Focus Suite · Blocks',
+          eyebrow: 'The 24-hour term', title: 'The clock is the only unlock.',
+          body: 'Every automatic block is exactly 24 hours — seven days a week. No Sunday exemption. No early lift. It expires because time passed, not because you asked.',
+          stat: '18h 42m', label: 'left on youtube.com', bar: '78%', barLabel: 'of the 24-hour term',
+          chips: ['Automatic detox', '7/7 · Sundays included', 'No patience discount']
+        },
+        {
+          img: 'blocks.png', accent: '#a78bfa', device: 'Focus Suite · YouTube Focus',
+          eyebrow: 'YouTube Focus', title: 'Filter the feed. Keep the brain.',
+          body: 'Home recommendations, Shorts, related videos and promos are hidden at the source. One keyword brain decides what the tracker calls education, passive or waste.',
+          stat: '0', label: 'bytes sent', bar: '100%', barLabel: 'local only · no network',
+          chips: ['On-device', 'Balanced / Strict', 'One keyword brain']
+        }
+      ]
+    }
+  };
+
+  const params = new URLSearchParams(location.search);
+  const storyKey = params.get('story') || 'showcase';
+  const story = STORIES[storyKey] || STORIES.showcase;
+  const scenes = story.scenes;
+  const per = story.duration / scenes.length;
+  const stage = document.getElementById('stage');
+  const copy = document.getElementById('copy');
+  const screen = document.getElementById('screen');
+  const segments = document.getElementById('segments');
+  const count = document.getElementById('count');
+  const addr = document.getElementById('addr');
+  const glow = document.getElementById('glow');
+
+  if (storyKey === 'proof') document.body.classList.add('proof');
+
+  // Build copy scenes.
+  scenes.forEach((s, i) => {
+    const node = document.createElement('div');
+    node.className = 'scene-copy';
+    node.dataset.scene = String(i);
+    node.style.zIndex = i === 0 ? '2' : '1';
+    node.innerHTML = `
+      <div class="eyebrow">${s.eyebrow}</div>
+      <h1>${s.title}</h1>
+      <p class="lede">${s.body}</p>
+      <div class="stat-row"><div class="stat">${s.stat}</div><div class="stat-label">${s.label}</div></div>
+      <div class="meter"><i style="width:${s.bar}"></i></div>
+      <div class="meter-label">${s.barLabel}</div>
+      <div class="chips">${s.chips.map((c) => `<span class="chip">${c}</span>`).join('')}</div>`;
+    copy.appendChild(node);
+  });
+
+  // Build screenshot layers.
+  scenes.forEach((s, i) => {
+    const img = document.createElement('img');
+    img.src = 'shots/' + s.img;
+    img.alt = s.device;
+    img.dataset.scene = String(i);
+    screen.appendChild(img);
+  });
+
+  scenes.forEach(() => {
+    const seg = document.createElement('span');
+    seg.className = 'seg';
+    seg.innerHTML = '<i></i>';
+    segments.appendChild(seg);
+  });
+
+  function setScene(i, alpha, z) {
+    document.querySelectorAll('.scene-copy').forEach((node, n) => {
+      node.style.opacity = n === i ? String(alpha) : '0';
+      node.style.transform = `translateY(${(1 - alpha) * 9}px)`;
+      node.style.zIndex = n === i ? String(z) : '1';
+    });
+    document.querySelectorAll('.screen img').forEach((node, n) => {
+      node.style.opacity = n === i ? String(Math.max(0.001, alpha)) : '0';
+      node.style.zIndex = n === i ? String(z) : '1';
+    });
+    const s = scenes[i];
+    const metaOn = alpha >= 0.5 || i === 0;
+    if (metaOn) {
+      stage.style.setProperty('--accent', s.accent);
+      glow.style.background = `radial-gradient(circle, ${s.accent}3d, transparent 64%)`;
+      addr.textContent = s.device;
+      count.textContent = `${String(i + 1).padStart(2, '0')} / ${String(scenes.length).padStart(2, '0')}`;
+    }
+    document.querySelectorAll('.seg').forEach((seg, n) => {
+      seg.querySelector('i').style.width = n < i ? '100%' : '0';
+    });
+  }
+
+  window.renderAt = function (t) {
+    const time = Math.max(0, Math.min(story.duration - 0.0001, t));
+    let i = Math.min(scenes.length - 1, Math.floor(time / per));
+    const local = time - i * per;
+    const fade = 0.5;
+    if (local < fade && i > 0) {
+      const a = local / fade;
+      setScene(i, a, 3);
+      const prev = i - 1;
+      document.querySelectorAll('.scene-copy')[prev].style.opacity = String(1 - a);
+      document.querySelectorAll('.scene-copy')[prev].style.zIndex = '2';
+      document.querySelectorAll('.screen img')[prev].style.opacity = String(Math.max(0.001, 1 - a));
+      document.querySelectorAll('.screen img')[prev].style.zIndex = '2';
+    } else {
+      setScene(i, 1, 3);
+    }
+    // Draw a continuous scene progress on the active segment.
+    const segs = document.querySelectorAll('.seg i');
+    segs[i].style.width = `${Math.min(100, (local / per) * 100)}%`;
+  };
+
+  window.__ready = Promise.all(
+    Array.from(document.images).map((img) => img.complete ? Promise.resolve() : new Promise((res) => {
+      img.addEventListener('load', res, { once: true });
+      img.addEventListener('error', res, { once: true });
+    }))
+  ).then(() => document.fonts.ready);
+
+  window.renderAt(0);
+</script>
+</body>
+</html>

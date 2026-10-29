@@ -17,13 +17,13 @@
 
 /* Focus Suite: the shared YouTube keyword brain (defaults + pure engine).
    The same two files run in the content script, popup, options page and here. */
-try { importScripts("yt-defaults.js", "yt-engine.js"); } catch (e) { /* tracker still works without it */ }
+try { importScripts("yt-defaults.js", "yt-engine.js", "content-classifier.js"); } catch (e) { /* tracker still works without it */ }
 
 /* ----------------------------- constants ----------------------------- */
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BLOCK_MS = DAY_MS; // the one and only automatic block term
 const POLICY_VERSION = "2.0"; // block policy: 24h, 7/7, no lift — carried unchanged into the Suite
-const SUITE_VERSION = "3.0.0";
+const SUITE_VERSION = "3.1.0";
 const SHIELD_DAYS = 14;
 const FLUSH_MS = 30 * 1000;
 const MAX_GAP_MS = 3 * 60 * 1000; // gaps longer than this are sleep/lock: discarded
@@ -34,6 +34,7 @@ const MEDIA_DAYS = 7;
 const BLOCKLOG_MAX = 25;
 const MAX_BLOCKLIST = 50;
 const MAX_CHANNELS = 200;
+const MAX_ADULT_DOMAINS = 40;
 const MAX_PATH_RULES = 50;
 const DETOX_MIN_MINUTES = 30;
 const YT_ENT_LIMIT_MIN = 40;
@@ -44,7 +45,7 @@ const AI_TIMEOUT_MS = 45 * 1000;
 const AI_MAX_ATTEMPTS = 3;
 
 /* Rule id ranges for declarativeNetRequest dynamic rules */
-const RID = { site: 1000, detox: 2000, youtube: 7000, channel: 10000 };
+const RID = { site: 1000, detox: 2000, youtube: 7000, channel: 10000, adult: 12000 };
 
 const NEVER_DETOX = new Set([
   "github.com", "gitlab.com", "stackoverflow.com", "developer.mozilla.org",
@@ -443,14 +444,31 @@ async function syncRulesNow() {
   const s = await sget(["blocklist", "detox", "ytBlock", "blockedChannels"]);
   const now = effNow();
   const rules = [];
+  const seenDomains = new Set();
 
   (s.blocklist || []).slice(0, MAX_BLOCKLIST).forEach((b, i) => {
-    if (b && b.domain) rules.push(siteBlockRule(RID.site + i, b.domain));
+    if (b && b.domain) {
+      rules.push(siteBlockRule(RID.site + i, b.domain));
+      seenDomains.add(String(b.domain).toLowerCase().replace(/^www\./, ""));
+    }
   });
 
   Object.keys(s.detox || {})
     .filter((d) => s.detox[d] && s.detox[d].endsAt > now)
-    .forEach((d, i) => rules.push(siteBlockRule(RID.detox + i, d)));
+    .forEach((d, i) => {
+      rules.push(siteBlockRule(RID.detox + i, d));
+      seenDomains.add(String(d).toLowerCase().replace(/^www\./, ""));
+    });
+
+  /* 18+ domains are a permanent, zero-tolerance block. They are not part
+     of the editable guard list and there is no reveal button. */
+  const adultDomains = (self.ContentClassifier && self.ContentClassifier.ADULT_DOMAINS) || [];
+  adultDomains.slice(0, MAX_ADULT_DOMAINS).forEach((d, i) => {
+    if (!seenDomains.has(d)) {
+      rules.push(siteBlockRule(RID.adult + i, d));
+      seenDomains.add(d);
+    }
+  });
 
   if (s.ytBlock && s.ytBlock.endsAt > now) {
     rules.push({
@@ -633,6 +651,7 @@ async function fireDigest() {
    decide what is hidden on the page also decide how the tracker counts
    what you actually watched. Compiled once, refreshed on any list change. */
 let ytfCompiled = null;
+let ytfSettings = Object.assign({}, (self.FOCUS_DEFAULTS && self.FOCUS_DEFAULTS.settings) || {});
 function compileYtf(stored) {
   const D = self.FOCUS_DEFAULTS, E = self.FocusEngine;
   if (!D || !E) return null;
@@ -645,22 +664,37 @@ function compileYtf(stored) {
 }
 ytfCompiled = compileYtf(null); // defaults are live immediately, even before storage answers
 async function loadYtf() {
-  try { ytfCompiled = compileYtf(await chrome.storage.sync.get(["ytfAllowed", "ytfGood", "ytfBlocked"])); }
-  catch (e) { /* keep the last good compile */ }
+  try {
+    const s = await chrome.storage.sync.get(["ytfSettings", "ytfAllowed", "ytfGood", "ytfBlocked"]);
+    ytfCompiled = compileYtf(s);
+    ytfSettings = Object.assign({}, (self.FOCUS_DEFAULTS && self.FOCUS_DEFAULTS.settings) || {}, s.ytfSettings || {});
+  } catch (e) { /* keep the last good compile */ }
 }
 
 function classifyVideo(title, channel, isShorts, verdicts) {
   const key = String(channel || "").toLowerCase();
+  const t = String(title || "").toLowerCase();
+  const classifier = self.ContentClassifier;
+  const result = classifier
+    ? classifier.classify({ url: isShorts ? "https://www.youtube.com/shorts/" : "https://www.youtube.com/watch", title, channel })
+    : null;
+
+  // 18+ is a hard category: it is counted separately and can arm the block.
+  if (result && result.category === "adult_18plus") return "adult";
   if (verdicts && verdicts[key] === "useful") return "edu";
   if (verdicts && verdicts[key] === "useless") return "waste";
   if (isShorts) return "shorts"; // Shorts are always waste
-  const t = String(title || "").toLowerCase();
   if (PASSIVE_WORDS.some((w) => t.includes(w))) return "passive"; // checked BEFORE educational
   const kw = ytfCompiled
     ? self.FocusEngine.classifyText(`${t} ${key}`, ytfCompiled)
     : { allowed: false, good: false, blocked: false };
   if (kw.allowed) return "other"; // Allowed always wins — same rule as on the page
   if (kw.blocked) return "waste";
+  if (result && ytfSettings.smartFilter !== false) {
+    if (result.category === "education" || result.category === "memory_cognitive") return "edu";
+    if (result.category === "self_improvement") return "passive";
+    if (result.category === "entertainment") return "waste";
+  }
   if (ENTERTAINMENT_WORDS.some((w) => t.includes(w))) return "waste";
   if (EDU_WORDS.some((w) => t.includes(w)) || kw.good) return "edu";
   return "other";
@@ -668,23 +702,25 @@ function classifyVideo(title, channel, isShorts, verdicts) {
 
 /* "Shielded today": what YouTube Focus hid or blocked for you, reported by
    the content script in small batches. Pure counters — no titles, no URLs. */
-async function recordShield(hidden, shorts) {
+async function recordShield(hidden, shorts, adult) {
   const h = Math.max(0, Math.min(500, Math.round(hidden || 0)));
   const sh = Math.max(0, Math.min(500, Math.round(shorts || 0)));
-  if (!h && !sh) return;
+  const ad = Math.max(0, Math.min(500, Math.round(adult || 0)));
+  if (!h && !sh && !ad) return;
   const s = await sget(["shield"]);
   const shield = s.shield || {};
   const date = todayKey();
-  shield[date] = shield[date] || { hidden: 0, shorts: 0 };
-  shield[date].hidden += h;
-  shield[date].shorts += sh;
+  shield[date] = shield[date] || { hidden: 0, shorts: 0, adult: 0 };
+  shield[date].hidden = (shield[date].hidden || 0) + h;
+  shield[date].shorts = (shield[date].shorts || 0) + sh;
+  shield[date].adult = (shield[date].adult || 0) + ad;
   const keepFrom = addDaysKey(date, -SHIELD_DAYS);
   for (const k of Object.keys(shield)) if (k < keepFrom) delete shield[k];
   await sset({ shield });
 }
 
 function mediaBuckets(dayMedia, verdicts) {
-  const buckets = { edu: 0, waste: 0, shorts: 0, passive: 0, other: 0 };
+  const buckets = { edu: 0, waste: 0, shorts: 0, passive: 0, other: 0, adult: 0 };
   const videos = Object.values((dayMedia && dayMedia.videos) || {});
   for (const v of videos) {
     const kind = classifyVideo(v.title, v.channel, v.isShorts, verdicts);
@@ -703,7 +739,9 @@ async function armYoutubeBlock(buckets, date) {
     .map((v) => ({ title: v.title, channel: v.channel, seconds: v.seconds }));
   const ytBlock = {
     armedAt: now, endsAt: now + BLOCK_MS,
-    reason: `Entertainment ${Math.round(buckets.waste / 60)}m / ${YT_ENT_LIMIT_MIN}m · Shorts ${Math.round(buckets.shorts / 60)}m / ${YT_SHORTS_LIMIT_MIN}m`
+    reason: `Entertainment ${Math.round((buckets.waste + buckets.adult) / 60)}m / ${YT_ENT_LIMIT_MIN}m` +
+      (buckets.adult ? ` (18+ ${Math.round(buckets.adult / 60)}m)` : "") +
+      ` · Shorts ${Math.round(buckets.shorts / 60)}m / ${YT_SHORTS_LIMIT_MIN}m`
   };
   await sset({ ytBlock });
   await pushBlockLog({
@@ -723,7 +761,7 @@ async function armYoutubeBlock(buckets, date) {
 async function checkYoutubeThresholds(date) {
   const s = await sget(["media", "channelVerdicts", "prod", "theaterNudge"]);
   const buckets = mediaBuckets((s.media || {})[date], s.channelVerdicts || {});
-  if (buckets.waste >= YT_ENT_LIMIT_MIN * 60 || buckets.shorts >= YT_SHORTS_LIMIT_MIN * 60) {
+  if (buckets.waste + buckets.adult >= YT_ENT_LIMIT_MIN * 60 || buckets.shorts >= YT_SHORTS_LIMIT_MIN * 60) {
     await armYoutubeBlock(buckets, date);
   }
   // Learning-theater nudge: lots of input, almost no practice.
@@ -826,7 +864,7 @@ function buildAiPrompt(date, ctx) {
     `Day ${date}: total focused ${ctx.total} minutes.`,
     `Top domains by minutes: ${top || "none"}.`,
     `Biggest time sink: ${ctx.waster || "none"}.`,
-    `YouTube split (minutes): educational ${Math.round(yt.edu / 60)}, passive self-help ${Math.round(yt.passive / 60)}, entertainment ${Math.round(yt.waste / 60)}, shorts ${Math.round(yt.shorts / 60)}, browsing ${Math.round(yt.other / 60)}.`,
+    `YouTube split (minutes): educational ${Math.round(yt.edu / 60)}, passive self-help ${Math.round(yt.passive / 60)}, entertainment ${Math.round(yt.waste / 60)}, 18+ ${Math.round((yt.adult || 0) / 60)}, shorts ${Math.round(yt.shorts / 60)}, browsing ${Math.round(yt.other / 60)}.`,
     `Productive minutes in the 17:00-19:59 study window: ${Math.round(ctx.goalMinutes)} of ${GOAL_TARGET_MIN} target.`,
     `Armed blocks: ${ctx.armed.join(", ") || "none"}. Every automatic block lasts exactly 24 hours and cannot be lifted early.`,
     `Hourly focused minutes: ${hourly || "none"}.`,
@@ -951,7 +989,7 @@ function buildReportMarkdown(date, review, ctx) {
   for (const e of ctx.top) lines.push(`- ${e.domain} — ${e.minutes}m`);
   lines.push("");
   lines.push("## YouTube split (minutes)");
-  lines.push(`- educational ${Math.round(ctx.ytBuckets.edu / 60)} · passive ${Math.round(ctx.ytBuckets.passive / 60)} · entertainment ${Math.round(ctx.ytBuckets.waste / 60)} · shorts ${Math.round(ctx.ytBuckets.shorts / 60)} · browsing ${Math.round(ctx.ytBuckets.other / 60)}`);
+  lines.push(`- educational ${Math.round(ctx.ytBuckets.edu / 60)} · passive ${Math.round(ctx.ytBuckets.passive / 60)} · entertainment ${Math.round(ctx.ytBuckets.waste / 60)} · 18+ ${Math.round((ctx.ytBuckets.adult || 0) / 60)} · shorts ${Math.round(ctx.ytBuckets.shorts / 60)} · browsing ${Math.round(ctx.ytBuckets.other / 60)}`);
   if (review && review.preview) { lines.push(""); lines.push("## Midnight preview"); lines.push(review.preview); }
   const ai = (review && review.ai || []).filter((a) => a.text);
   if (ai.length) {
@@ -1107,7 +1145,7 @@ async function getState() {
     },
     digestEnabled: !!s.digestEnabled,
     suite: SUITE_VERSION,
-    shield: ((await sget(["shield"])).shield || {})[today] || { hidden: 0, shorts: 0 },
+    shield: ((await sget(["shield"])).shield || {})[today] || { hidden: 0, shorts: 0, adult: 0 },
     limits: { maxBlocklist: MAX_BLOCKLIST, maxChannels: MAX_CHANNELS, maxPathRules: MAX_PATH_RULES }
   };
 }
@@ -1300,7 +1338,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
 
         case "ytf-shield":
-          await recordShield(msg.hidden, msg.shorts);
+          await recordShield(msg.hidden, msg.shorts, msg.adult);
           sendResponse({ ok: true });
           break;
 
@@ -1328,8 +1366,8 @@ chrome.windows.onFocusChanged.addListener(async (winId) => {
   else await switchCurrent(await activeTabInfo());
 });
 chrome.storage.onChanged.addListener((changes, area) => {
-  // any keyword-list edit (options page, import, sync from another device) re-teaches the classifier
-  if (area === "sync" && (changes.ytfAllowed || changes.ytfGood || changes.ytfBlocked)) loadYtf();
+  // any keyword-list or classifier-toggle edit (options page, import, sync from another device) re-teaches the classifier
+  if (area === "sync" && (changes.ytfAllowed || changes.ytfGood || changes.ytfBlocked || changes.ytfSettings)) loadYtf();
 });
 chrome.idle.onStateChanged.addListener(async (state) => {
   if (state !== "active") await flush();

@@ -1,7 +1,8 @@
-/* Focus Suite 3.0 — options.js
-   Keyword list editor. Lists live in chrome.storage.sync, one key per list
-   (each key has an 8 KB quota). Loosening protections is allowed — but never
-   on impulse: removing Blocked keywords asks for a deliberate confirmation. */
+/* Focus Suite 3.1 — options.js
+   Keyword list + classifier editor. Lists live in chrome.storage.sync, one
+   key per list (each key has an 8 KB quota). Loosening protections is allowed
+   — but never on impulse: removing Blocked keywords asks for a deliberate
+   confirmation. The 18+ hard block itself has no off switch. */
 "use strict";
 (function () {
   var D = FOCUS_DEFAULTS;
@@ -40,6 +41,7 @@
     $("blocked").value = (s.ytfBlocked || D.blocked).join("\n");
     $("queryMode").value = st.queryPassMode;
     $("stillBlocks").checked = !!st.queryPassStillBlocks;
+    $("smartFilter").checked = st.smartFilter !== false;
     savedBlocked = (s.ytfBlocked || D.blocked).slice();
     updateMeters();
   }
@@ -68,7 +70,8 @@
     chrome.storage.sync.get(["ytfSettings"], function (s) {
       var settings = Object.assign({}, D.settings, s.ytfSettings || {}, {
         queryPassMode: $("queryMode").value,
-        queryPassStillBlocks: $("stillBlocks").checked
+        queryPassStillBlocks: $("stillBlocks").checked,
+        smartFilter: $("smartFilter").checked
       });
       next.ytfSettings = settings;
       chrome.storage.sync.set(next, function () {
@@ -80,10 +83,12 @@
   }
 
   function reset() {
-    if (!confirm("Reset all three lists and the search override to the defaults?")) return;
+    if (!confirm("Reset all three lists, the classifier toggle, and the search override to the defaults?")) return;
     chrome.storage.sync.get(["ytfSettings"], function (s) {
       var settings = Object.assign({}, s.ytfSettings || {}, {
-        queryPassMode: D.settings.queryPassMode, queryPassStillBlocks: D.settings.queryPassStillBlocks
+        queryPassMode: D.settings.queryPassMode,
+        queryPassStillBlocks: D.settings.queryPassStillBlocks,
+        smartFilter: D.settings.smartFilter
       });
       chrome.storage.sync.set({
         ytfSettings: settings, ytfAllowed: D.allowed.slice(), ytfGood: D.good.slice(), ytfBlocked: D.blocked.slice()
@@ -94,7 +99,7 @@
   function exportJson() {
     chrome.storage.sync.get(KEYS, function (s) {
       var data = {
-        focusSuite: "3.0",
+        focusSuite: "3.1",
         settings: Object.assign({}, D.settings, s.ytfSettings || {}),
         allowed: s.ytfAllowed || D.allowed, good: s.ytfGood || D.good, blocked: s.ytfBlocked || D.blocked
       };

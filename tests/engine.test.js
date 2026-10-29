@@ -60,7 +60,8 @@ eq("queryPassStillBlocks keeps hard blocks hidden during override",
   dec("funny coding fails", "balanced", { queryPassStillBlocks: true, opts: { queryOverride: true } }).hide, true);
 
 console.log("Defaults + helpers");
-eq("defaults: mode is balanced", D.settings.mode, "balanced");
+eq("defaults: mode is strict (useful-only feed)", D.settings.mode, "strict");
+eq("defaults: smart classifier on", D.settings.smartFilter, true);
 eq("defaults: Shorts blocked", D.settings.blockShorts, true);
 eq("defaults: 14 allowed keywords", D.allowed.length, 14);
 eq("parseList splits lines + commas and de-duplicates", E.parseList("A, b\nB\n\n a ").join("|"), "a|b");

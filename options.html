@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Focus Suite — YouTube keyword lists</title>
+<title>Focus Suite — YouTube keyword lists &amp; classifier</title>
 <style>
   :root { --bg:#0a0c12; --line:rgba(255,255,255,.1); --ink:#f6f7fa; --muted:#8d95a8; --faint:#5f687c; --brand:#818cf8; --mint:#4ade80; --coral:#fb7185; --sand:#f3d6a6; }
   * { box-sizing: border-box; }
@@ -37,29 +37,36 @@
 </head>
 <body>
 <main>
-  <h1>YouTube keyword lists</h1>
-  <p class="lead">One shared brain: these lists drive the on-page filtering <b>and</b> how Focus Suite classifies the videos you actually watch (waste / educational). One keyword per line, or comma-separated. Settings sync across your Chrome profile.</p>
+  <h1>YouTube Focus settings</h1>
+  <p class="lead">One shared brain: these lists and the on-device classifier drive the on-page filtering <b>and</b> how Focus Suite classifies the videos you actually watch (waste / educational / 18+). One keyword per line, or comma-separated. Settings sync across your Chrome profile.</p>
 
   <div class="grid">
     <section class="card">
       <h2><span class="dot" style="background:var(--mint)"></span> Allowed — always shown</h2>
-      <p>Wins over everything, including Blocked and Strict mode. Use it for false positives (<code>failsafe</code> vs <code>fail</code>) and shows you love.</p>
+      <p>Wins over everything, including Blocked and Only useful mode. Use it for false positives (<code>failsafe</code> vs <code>fail</code>) and shows you love.</p>
       <textarea id="allowed" spellcheck="false"></textarea>
       <div class="meta"><span id="allowedCount"></span><span id="allowedSize"></span></div>
     </section>
 
     <section class="card">
-      <h2><span class="dot" style="background:var(--brand)"></span> Good topics — Strict mode allows</h2>
-      <p>In Strict mode only these (plus Allowed) are shown. Also counted as educational when the tracker classifies a video.</p>
+      <h2><span class="dot" style="background:var(--brand)"></span> Good topics — Only useful mode allows</h2>
+      <p>In Only useful mode these (plus Allowed and classifier-approved learning) are shown. Also counted as educational when the tracker classifies a video.</p>
       <textarea id="good" spellcheck="false"></textarea>
       <div class="meta"><span id="goodCount"></span><span id="goodSize"></span></div>
     </section>
 
     <section class="card">
-      <h2><span class="dot" style="background:var(--coral)"></span> Blocked — hidden in Balanced and Strict</h2>
+      <h2><span class="dot" style="background:var(--coral)"></span> Blocked — hidden in Balanced and Only useful</h2>
       <p>Hidden from results, home, subscriptions, channels and playlists. Also counted as <b>waste</b> by the tracker's 40-minute entertainment rule.</p>
       <textarea id="blocked" spellcheck="false"></textarea>
       <div class="meta"><span id="blockedCount"></span><span id="blockedSize"></span></div>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot" style="background:var(--mint)"></span> Smart content classifier</h2>
+      <p>Runs locally on the video title, channel, and URL — no network, no video download. It recognises education, memory training, self-improvement, entertainment, and 18+ material. Education, memory, and self-improvement pass; entertainment is hidden in Balanced and Only useful; unknown videos are hidden in Only useful.</p>
+      <label class="check"><input type="checkbox" id="smartFilter"> Enable the on-device classifier</label>
+      <p style="margin-top:10px"><b style="color:var(--coral)">18+ is always hard-blocked.</b> Turning the classifier off disables category-based filtering, never the 18+ block. Keyword mode still applies. Known adult domains are also blocked at the network layer.</p>
     </section>
 
     <section class="card">
@@ -87,7 +94,7 @@
   </div>
 
   <div class="bar">
-    <button class="primary" id="save">Save lists</button>
+    <button class="primary" id="save">Save settings</button>
     <button id="export">Export JSON</button>
     <button id="importBtn">Import JSON…</button>
     <input id="importFile" type="file" accept="application/json" hidden />

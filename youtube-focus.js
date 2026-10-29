@@ -1,8 +1,9 @@
-/* Focus Suite 3.0 — youtube-focus.js (document_start)
+/* Focus Suite 3.1 — youtube-focus.js (document_start)
    ONE content script for everything that changes what YouTube shows:
      • layout cleanup  (home feed, sidebar/related, end screens, promos)
      • Shorts blocking (nav, shelves, cards, /shorts/ pages, click interception)
      • keyword filtering (Off / Balanced / Strict + search override + reveal pill)
+     • on-device content classifier (education / memory / self-improvement / 18+)
      • blocked-channel hiding + watch-page bounce  (from Focus Tracker)
    One MutationObserver, one debounced pass. Settings are cached in
    localStorage so the first paint is already clean. Playback accounting
@@ -14,6 +15,7 @@
   G.__ftSuiteFocus = true;
   var D = G.FOCUS_DEFAULTS;
   var E = G.FocusEngine;
+  var C = G.ContentClassifier;
   if (!D || !E) return;
 
   var CACHE_KEY = "__ytf_state_v1";
@@ -34,7 +36,7 @@
   var forcedShortsScreen = false;
   var scheduled = false;
   var counted = typeof WeakSet === "function" ? new WeakSet() : null;
-  var pending = { hidden: 0, shorts: 0 };
+  var pending = { hidden: 0, shorts: 0, adult: 0 };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function root() { return document.documentElement; }
@@ -103,23 +105,88 @@
   function countShield(tile, kind) {
     if (!counted || counted.has(tile)) return;
     counted.add(tile);
-    if (kind === "shorts") pending.shorts++; else pending.hidden++;
+    if (kind === "shorts") pending.shorts++;
+    else if (kind === "adult") pending.adult++;
+    else pending.hidden++;
+  }
+
+  function absoluteUrl(href) {
+    if (!href) return location.href;
+    try { return new URL(href, location.origin).href; } catch (e) { return href; }
+  }
+
+  /* Pull the title, channel and canonical URL out of a feed tile. The
+     classifier only needs these three fields; no video download, no API. */
+  function tileMeta(tile) {
+    var link = tile.querySelector('a#video-title, a#video-title-link, a[href*="/watch?v="], a[href^="/shorts/"]');
+    var title = link ? (link.getAttribute("title") || link.textContent || "") : "";
+    var channelEl = tile.querySelector("ytd-channel-name a, #channel-name a, #channel-name yt-formatted-string, .ytd-channel-name");
+    var channel = channelEl ? (channelEl.textContent || "") : "";
+    if (!title) title = (tile.textContent || "").slice(0, 240);
+    return {
+      url: absoluteUrl(link ? link.getAttribute("href") : ""),
+      title: String(title).replace(/\s+/g, " ").trim(),
+      channel: String(channel).replace(/\s+/g, " ").trim()
+    };
   }
 
   function judge(tile, override) {
     var text = (tile.textContent || "").replace(/\s+/g, " ").slice(0, 700);
     if (text.length < 3) return; // not rendered yet — look again on the next pass
-    var sig = text + "|" + (override ? 1 : 0) + "|" + rev;
+    var meta = tileMeta(tile);
+    var result = C ? C.classify(meta) : null;
+    if (result) tile.setAttribute("data-ytf-cat", result.category);
+    else tile.removeAttribute("data-ytf-cat");
+    var sig = text + "|" + (override ? 1 : 0) + "|" + rev + "|" + (result ? result.category : "none");
     if (tile.__ytfSig === sig) return;
     tile.__ytfSig = sig;
 
     var hard = null;
     if (hrefBlocked(channelHref(tile))) hard = "channel";
     else if (settings.blockShorts && tile.querySelector('a[href^="/shorts/"]')) hard = "shorts";
+    else if (result && result.category === "adult_18plus") hard = "adult";
     tile.classList.toggle("ytf-hard-hidden", !!hard);
-    if (hard) { tile.classList.remove("ytf-hidden"); countShield(tile, hard); return; }
+    if (hard) {
+      tile.classList.remove("ytf-hidden");
+      tile.setAttribute("data-ytf-why", hard);
+      countShield(tile, hard);
+      return;
+    }
 
-    var d = E.decide(text, settings, compiled, { queryOverride: override });
+    var k = E.classifyText(text, compiled);
+    if (k.allowed) {
+      tile.classList.remove("ytf-hidden");
+      tile.removeAttribute("data-ytf-why");
+      return;
+    }
+    if (k.blocked && (!override || settings.queryPassStillBlocks)) {
+      tile.classList.add("ytf-hidden");
+      tile.setAttribute("data-ytf-why", "blocked");
+      countShield(tile, "keyword");
+      return;
+    }
+    if (override) {
+      tile.classList.remove("ytf-hidden");
+      tile.removeAttribute("data-ytf-why");
+      return;
+    }
+
+    if (result) {
+      var cv = C.verdict(result, settings);
+      if (cv.hide) {
+        tile.classList.add("ytf-hidden");
+        tile.setAttribute("data-ytf-why", cv.reason);
+        countShield(tile, "keyword");
+        return;
+      }
+      if (cv.reason === "classifier-useful") {
+        tile.classList.remove("ytf-hidden");
+        tile.removeAttribute("data-ytf-why");
+        return;
+      }
+    }
+
+    var d = E.decide(text, settings, compiled, { queryOverride: false });
     tile.classList.toggle("ytf-hidden", d.hide);
     if (d.hide) { tile.setAttribute("data-ytf-why", d.reason); countShield(tile, "keyword"); }
     else tile.removeAttribute("data-ytf-why");
@@ -142,6 +209,7 @@
     updatePill();
     updateShortsScreen();
     bounceBlockedWatch();
+    updateAdultScreen();
   }
 
   function queue() {
@@ -153,10 +221,11 @@
   /* ----------------------------- reveal pill ---------------------------- */
   function updatePill() {
     var n = isSearch() ? document.querySelectorAll(".ytf-hidden").length : 0;
+    var adultN = document.querySelectorAll('.ytf-hard-hidden[data-ytf-cat="adult_18plus"]').length;
     var pill = document.getElementById("ytf-pill");
-    if (!n || !document.body) {
+    if ((!n && !adultN) || !document.body) {
       if (pill) pill.remove();
-      if (!n) { revealed = false; root().classList.remove("ytf-reveal"); }
+      if (!n && !adultN) { revealed = false; root().classList.remove("ytf-reveal"); }
       return;
     }
     if (!pill) {
@@ -170,9 +239,14 @@
       });
       document.body.appendChild(pill);
     }
-    pill.textContent = revealed
-      ? "Hide the " + n + " video" + (n === 1 ? "" : "s") + " again"
-      : "\uD83D\uDEAB " + n + " video" + (n === 1 ? "" : "s") + " hidden \u2014 click to show";
+    var adultText = adultN ? (n ? " \u00b7 " : "") + adultN + " 18+ blocked" : "";
+    if (revealed && n) {
+      pill.textContent = "Hide the " + n + " video" + (n === 1 ? "" : "s") + " again";
+    } else if (n) {
+      pill.textContent = "\uD83D\uDEAB " + n + " video" + (n === 1 ? "" : "s") + " hidden" + adultText + " \u2014 click to show";
+    } else {
+      pill.textContent = "\uD83D\uDEAB " + adultN + " 18+ video" + (adultN === 1 ? "" : "s") + " blocked";
+    }
   }
 
   /* ------------------------------- Shorts ------------------------------- */
@@ -189,6 +263,41 @@
       screen.innerHTML =
         "<div><p class='ytf-big'>Shorts are blocked</p>" +
         "<p class='ytf-sub'>Focus Suite keeps the infinite scroll out. The rest of YouTube still works.</p>" +
+        "<a href='/'>\u2190 Back to Home</a></div>";
+      document.body.appendChild(screen);
+    }
+    var vids = document.querySelectorAll("video");
+    for (var i = 0; i < vids.length; i++) { try { vids[i].pause(); vids[i].muted = true; } catch (e) { /* ignore */ } }
+  }
+
+  /* ------------------------- 18+ watch-page shield ---------------------- */
+  function watchMeta() {
+    if (location.pathname !== "/watch") return null;
+    var titleEl = document.querySelector("h1.ytd-watch-metadata yt-formatted-string, h1.title yt-formatted-string, #title h1");
+    var owner = document.querySelector("ytd-video-owner-renderer a[href*='/@'], #owner a[href*='/@']");
+    var title = titleEl ? (titleEl.textContent || "") : (document.title || "");
+    var channel = owner ? (owner.textContent || "") : "";
+    return {
+      url: location.href,
+      title: String(title).replace(/\s+/g, " ").trim(),
+      channel: String(channel).replace(/\s+/g, " ").trim()
+    };
+  }
+
+  function updateAdultScreen() {
+    var screen = document.getElementById("ytf-adult-screen");
+    var info = C ? watchMeta() : null;
+    var result = info ? C.classify(info) : null;
+    if (!result || result.category !== "adult_18plus") {
+      if (screen) screen.remove();
+      return;
+    }
+    if (!screen && document.body) {
+      screen = document.createElement("div");
+      screen.id = "ytf-adult-screen";
+      screen.innerHTML =
+        "<div><p class='ytf-big'>18+ content blocked</p>" +
+        "<p class='ytf-sub'>Focus Suite's on-device classifier flagged this video. 18+ content is never revealed.</p>" +
         "<a href='/'>\u2190 Back to Home</a></div>";
       document.body.appendChild(screen);
     }
@@ -223,9 +332,9 @@
 
   /* --------------------- shield counters -> tracker ---------------------- */
   function flushShield() {
-    if (!pending.hidden && !pending.shorts) return;
-    var msg = { type: "ytf-shield", hidden: pending.hidden, shorts: pending.shorts };
-    pending = { hidden: 0, shorts: 0 };
+    if (!pending.hidden && !pending.shorts && !pending.adult) return;
+    var msg = { type: "ytf-shield", hidden: pending.hidden, shorts: pending.shorts, adult: pending.adult };
+    pending = { hidden: 0, shorts: 0, adult: 0 };
     try { chrome.runtime.sendMessage(msg, function () { void chrome.runtime.lastError; }); } catch (e) { /* ignore */ }
   }
   setInterval(flushShield, 15000);
@@ -242,6 +351,8 @@
   function onNavigate() {
     revealed = false;
     forcedShortsScreen = false;
+    var adultScreen = document.getElementById("ytf-adult-screen");
+    if (adultScreen) adultScreen.remove();
     if (root()) root().classList.remove("ytf-reveal");
     queue();
   }

@@ -236,7 +236,7 @@ function renderToday() {
 
     <div class="card">
       <p class="sub" style="margin:0"><b style="color:#d6dae3">Yesterday ·</b> ${fmt(s.yesterday.total)} tracked${s.yesterday.top ? ` · top ${esc(s.yesterday.top.domain)} (${s.yesterday.top.minutes}m)` : ""}.</p>
-      ${s.shield && (s.shield.hidden || s.shield.shorts) ? `<p class="hint">🛡️ YouTube Focus shielded you today: ${s.shield.hidden} video${s.shield.hidden === 1 ? "" : "s"} hidden · ${s.shield.shorts} Short${s.shield.shorts === 1 ? "" : "s"} blocked.</p>` : ""}
+      ${s.shield && (s.shield.hidden || s.shield.shorts || s.shield.adult) ? `<p class="hint">🛡️ YouTube Focus shielded you today: ${s.shield.hidden} video${s.shield.hidden === 1 ? "" : "s"} hidden · ${s.shield.shorts} Short${s.shield.shorts === 1 ? "" : "s"} blocked · ${s.shield.adult || 0} 18+ blocked.</p>` : ""}
       ${topWaste ? `<p class="hint">Watching: ${esc(topWaste.domain)} — a top-3 day at 30m+ arms a locked 24h detox at midnight.</p>` : ""}
     </div>`;
 }
@@ -332,7 +332,9 @@ function renderSites() {
 function renderBlocks() {
   const s = state;
   const b = s.yt.buckets;
-  const ytTotal = b.edu + b.passive + b.waste + b.shorts + b.other;
+  const adult = b.adult || 0;
+  const entTotal = b.waste + adult;
+  const ytTotal = b.edu + b.passive + entTotal + b.shorts + b.other;
   const seg = (v, color) => ytTotal ? `<i style="width:${(v / ytTotal) * 100}%;background:${color}"></i>` : "";
 
   const videoRows = s.yt.lastVideos.map((v) => `
@@ -382,22 +384,23 @@ function renderBlocks() {
     ${renderYtfCard()}
     <div class="card">
       <div class="row-between"><p class="label">YouTube today</p><span class="pill coral">🔒 1-day term</span></div>
-      <div class="stacked">${seg(b.edu, "rgba(74,222,128,0.85)")}${seg(b.passive, "rgba(129,140,248,0.85)")}${seg(b.waste + b.shorts, b.waste >= s.yt.entLimit || b.shorts >= s.yt.shortsLimit ? "#fb7185" : "rgba(243,214,166,0.85)")}${seg(b.other, "rgba(255,255,255,0.25)")}</div>
+      <div class="stacked">${seg(b.edu, "rgba(74,222,128,0.85)")}${seg(b.passive, "rgba(129,140,248,0.85)")}${seg(entTotal, entTotal >= s.yt.entLimit || b.shorts >= s.yt.shortsLimit ? "#fb7185" : "rgba(243,214,166,0.85)")}${seg(b.shorts + b.other, "rgba(255,255,255,0.25)")}</div>
       <div class="legend">
         <div><i style="background:var(--mint)"></i>Educational<b>${b.edu}m</b></div>
         <div><i style="background:var(--brand)"></i>Self-help trap<b>${b.passive}m</b></div>
-        <div><i style="background:var(--sand)"></i>Entertainment<b>${b.waste}m</b></div>
+        <div><i style="background:var(--sand)"></i>Entertainment / 18+<b>${entTotal}m</b></div>
         <div><i style="background:rgba(255,255,255,0.35)"></i>Shorts + browsing<b>${b.shorts + b.other}m</b></div>
       </div>
+      ${adult ? `<p class="hint" style="color:var(--coral)">🔞 ${adult}m classified 18+ today. Hard-blocked; 18+ is never revealable.</p>` : ""}
       <div class="metric3">
-        <div class="metric"><p>Ent / ${s.yt.entLimit}m</p><b style="color:${b.waste >= s.yt.entLimit ? "var(--coral)" : "inherit"}">${b.waste}m</b></div>
+        <div class="metric"><p>Ent+18+ / ${s.yt.entLimit}m</p><b style="color:${entTotal >= s.yt.entLimit ? "var(--coral)" : "inherit"}">${entTotal}m</b></div>
         <div class="metric"><p>Shorts / ${s.yt.shortsLimit}m</p><b style="color:${b.shorts >= s.yt.shortsLimit ? "var(--coral)" : "inherit"}">${b.shorts}m</b></div>
         <div class="metric"><p>Status</p><b style="color:${s.ytBlock ? "var(--coral)" : "var(--mint)"}">${s.ytBlock ? "LOCKED" : "safe"}</b></div>
       </div>
       ${s.ytBlock ? `<div class="card locked-card" style="margin:9px 0 0;padding:9px">
         <div class="row-between"><p style="font-size:10.5px;font-weight:600;color:var(--coral)">youtube.com is blocked</p><span class="mono" style="font-size:9px;color:var(--coral)">${countdown(s.ytBlock.endsAt)}</span></div>
         <p class="block-reason">${esc(s.ytBlock.reason || "")} · armed for exactly 24 hours.</p>
-      </div>` : `<p class="hint">Cross 40m entertainment or 20m Shorts and youtube.com locks for exactly 24 hours. No skip exists.</p>`}
+      </div>` : `<p class="hint">Cross 40m entertainment + 18+ or 20m Shorts and youtube.com locks for exactly 24 hours. No skip exists.</p>`}
       ${videoRows ? `<p class="label" style="margin:10px 0 6px">Judge recent videos · per channel, forever</p>${videoRows}` : ""}
     </div>
 
@@ -440,14 +443,15 @@ function renderYtfCard() {
         <p class="sub" style="margin-top:1px">${pendingLoosen === key ? '<span class="coral">Tap again to turn this protection off</span>' : sub}</p></div>
       <button class="switch ${ytf[key] ? "on" : ""}" data-action="ytfToggle" data-key="${key}" role="switch" aria-checked="${!!ytf[key]}" aria-label="${label}"><span></span></button>
     </div>`;
-  const modes = [["off", "Off"], ["balanced", "Balanced"], ["strict", "Strict"]];
+  const modes = [["off", "Off"], ["balanced", "Balanced"], ["strict", "Only useful"]];
   return `
     <div class="card brand-card">
       <div class="row-between"><p class="label" style="color:var(--brand)">YouTube Focus</p><span class="pill mint">on-device · no network</span></div>
       <div class="seg" style="margin:9px 0 0">
         ${modes.map(([m, l]) => `<button data-action="ytfMode" data-mode="${m}" class="${ytf.mode === m ? "active" : ""}">${pendingLoosen === "mode:" + m ? "Sure?" : l}</button>`).join("")}
       </div>
-      <p class="hint" style="margin-top:6px">${ytf.mode === "off" ? "No keyword filtering. Layout switches below still apply." : ytf.mode === "balanced" ? "Junk categories hidden; everything else stays." : "Only good topics + Allowed keywords are shown."}</p>
+      <p class="hint" style="margin-top:6px">${ytf.mode === "off" ? "No keyword filtering. 18+ hard block and layout switches still apply." : ytf.mode === "balanced" ? "Junk and 18+ hidden; neutral videos stay." : "Only classifier-approved learning, memory, self-improvement, and Allowed keywords are shown."}</p>
+      ${sw("smartFilter", "Smart content classifier", "Blocks 18+ always; identifies education, memory, self-improvement, and entertainment on-device.")}
       ${sw("hideHomeRecs", "Hide the home feed", "Replaced by “search for what you actually need”.")}
       ${sw("hideSidebar", "Hide related, end screens, autoplay", "Up-next column, chips, end-screen wall, pause overlay.")}
       ${sw("blockShorts", "Block Shorts everywhere", "Nav, shelves, cards and /shorts/ pages — the player never loads.")}
@@ -458,7 +462,7 @@ function renderYtfCard() {
         </select>
       </div>
       <button class="btn w100" data-action="ytfOptions">Edit keyword lists →</button>
-      <p class="hint">One brain: these same lists teach the tracker what counts as waste or educational when you watch.</p>
+      <p class="hint">One brain: the keyword lists and on-device classifier also teach the tracker what counts as waste, educational, or 18+ when you watch.</p>
     </div>`;
 }
 
@@ -636,7 +640,11 @@ view.addEventListener("click", async (e) => {
     ytf = { ...ytf, [key]: !ytf[key] };
     await saveYtf(ytf);
     render();
-    toast(ytf[key] ? "Protection on" : "Protection off", ytf[key] ? "Applies to open YouTube tabs right now." : "You can turn it back on any time — one click.");
+    if (key === "smartFilter" && !ytf[key]) {
+      toast("Classifier off", "Category filtering is off. Keyword mode still applies; 18+ stays hard-blocked.");
+    } else {
+      toast(ytf[key] ? "Protection on" : "Protection off", ytf[key] ? "Applies to open YouTube tabs right now." : "You can turn it back on any time — one click.");
+    }
   }
   else if (a === "ytfMode") {
     const mode = el.dataset.mode;
@@ -647,7 +655,7 @@ view.addEventListener("click", async (e) => {
     ytf = { ...ytf, mode };
     await saveYtf(ytf);
     render();
-    toast(`Mode: ${mode}`, mode === "strict" ? "Only good topics and Allowed keywords are shown." : mode === "balanced" ? "Junk categories hidden; the rest stays." : "Keyword filtering is off.");
+    toast(`Mode: ${mode === "strict" ? "Only useful" : mode}`, mode === "strict" ? "Only classifier-approved learning, memory, self-improvement, and Allowed keywords are shown." : mode === "balanced" ? "Junk and 18+ hidden; neutral videos stay." : "Keyword filtering is off. 18+ remains hard-blocked.");
   }
   else if (a === "ytfOptions") { chrome.runtime.openOptionsPage(); }
   else if (a === "toggleReminder") {

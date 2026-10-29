@@ -1,4 +1,4 @@
-/* Focus Suite 3.0 — yt-defaults.js
+/* Focus Suite 3.1 — yt-defaults.js
    Default YouTube Focus settings + keyword lists. Assigned to globalThis so
    it is safe if injected twice, and shared by: the content script, the
    service worker (importScripts), the popup and the options page. */
@@ -9,7 +9,10 @@
       hideHomeRecs: true,
       hideSidebar: true,
       blockShorts: true,
-      mode: "balanced", // off | balanced | strict
+      // Fresh installs start with the useful-only feed. Existing users keep
+      // whatever mode they already saved.
+      mode: "strict", // off | balanced | strict
+      smartFilter: true, // on-device education / memory / 18+ classifier
       queryPassMode: "allowed+good", // allowed+good | allowed | never
       queryPassStillBlocks: false
     },

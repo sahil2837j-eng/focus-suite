@@ -47,16 +47,31 @@ console.log("Suite merge");
 const contentScripts = manifest.content_scripts || [];
 const focusEntry = contentScripts.find((c) => (c.js || []).includes("youtube-focus.js")) || {};
 check("one YouTube Focus content script, injected at document_start", focusEntry.run_at === "document_start");
-check("shared defaults + engine load before the content script",
-  (focusEntry.js || []).join(",") === "yt-defaults.js,yt-engine.js,youtube-focus.js");
+check("shared defaults + engine + classifier load before the content script",
+  (focusEntry.js || []).join(",") === "yt-defaults.js,yt-engine.js,content-classifier.js,youtube-focus.js");
 check("the old youtube-blocker.js is gone from the manifest", !JSON.stringify(manifest).includes("youtube-blocker"));
 check("options page is declared", !!(manifest.options_ui && manifest.options_ui.page === "options.html"));
-check("worker imports the shared engine", bg.includes('importScripts("yt-defaults.js", "yt-engine.js")'));
+check("worker imports the shared engine + classifier",
+  bg.includes('importScripts("yt-defaults.js", "yt-engine.js", "content-classifier.js")'));
 check("tracker classification uses the shared keyword lists", bg.includes("self.FocusEngine.classifyText"));
 check("Allowed wins in tracker classification too", bg.includes("Allowed always wins"));
 check("loosening a YouTube protection needs a second click", popup.includes("armLoosen(key)") && popup.includes("armLoosen(\"mode:\" + mode)"));
 check("shield counters carry numbers only (no titles, no URLs)",
-  /type:\s*"ytf-shield",\s*hidden:\s*pending\.hidden,\s*shorts:\s*pending\.shorts/.test(fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8")));
+  /type:\s*"ytf-shield",\s*hidden:\s*pending\.hidden,\s*shorts:\s*pending\.shorts,\s*adult:\s*pending\.adult/.test(fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8")));
+
+console.log("18+ hard block");
+const classifier = fs.readFileSync(path.join(__dirname, "..", "content-classifier.js"), "utf8");
+const focusScript = fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8");
+check("classifier exposes adult domains and a verdict helper",
+  classifier.includes("ADULT_DOMAINS") && classifier.includes("function verdict"));
+check("18+ is always hard-blocked in the pure verdict",
+  classifier.includes('result.category === "adult_18plus"') && classifier.includes('reason: "adult"'));
+check("YouTube tiles are tagged with classifier categories",
+  focusScript.includes("data-ytf-cat") && focusScript.includes("adult_18plus"));
+check("worker adds permanent adult-domain DNR rules",
+  bg.includes("RID.adult") && bg.includes("MAX_ADULT_DOMAINS") && bg.includes("self.ContentClassifier.ADULT_DOMAINS"));
+check("popup exposes the classifier toggle",
+  popup.includes("smartFilter") && popup.includes("Smart content classifier"));
 
 if (failed) {
   console.error(`\n${failed} policy test(s) failed. 2.0 means: 24h, 7/7, clock only.`);

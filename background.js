@@ -23,7 +23,7 @@ try { importScripts("yt-defaults.js", "yt-engine.js", "content-classifier.js"); 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BLOCK_MS = DAY_MS; // the one and only automatic block term
 const POLICY_VERSION = "2.0"; // block policy: 24h, 7/7, no lift — carried unchanged into the Suite
-const SUITE_VERSION = "3.1.0";
+const SUITE_VERSION = "3.2.0";
 const SHIELD_DAYS = 14;
 const FLUSH_MS = 30 * 1000;
 const MAX_GAP_MS = 3 * 60 * 1000; // gaps longer than this are sleep/lock: discarded
@@ -672,7 +672,7 @@ async function loadYtf() {
 }
 
 function classifyVideo(title, channel, isShorts, verdicts) {
-  const key = String(channel || "").toLowerCase();
+  const key = String(channel || "").toLowerCase().trim();
   const t = String(title || "").toLowerCase();
   const classifier = self.ContentClassifier;
   const result = classifier
@@ -1228,7 +1228,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         }
 
         case "judgeChannel": {
-          const key = String(msg.channel || "").toLowerCase();
+          const key = String(msg.channel || "").toLowerCase().trim();
           const verdict = msg.verdict === "useful" ? "useful" : "useless";
           const s = await sget(["channelVerdicts"]);
           const verdicts = { ...(s.channelVerdicts || {}), [key]: verdict };

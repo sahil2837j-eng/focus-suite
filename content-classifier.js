@@ -1,4 +1,4 @@
-/* Focus Suite 3.1 — content-classifier.js
+/* Focus Suite 3.2 — content-classifier.js
    On-device content classifier ported from the standalone
    build-content-classification-feature project. It is intentionally
    DOM-free and network-free: the same file runs in the YouTube content

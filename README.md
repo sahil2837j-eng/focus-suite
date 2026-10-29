@@ -1,4 +1,4 @@
-# Focus Suite 3.1 — Time Tracker + YouTube Focus + Content Classifier
+# Focus Suite 3.2 — Time Tracker + YouTube Focus + Content Classifier
 
 **Focus Time Tracker (v1.8)** and **YouTube Focus (v1.1)** merged into a single
 Manifest V3 extension with one popup, one YouTube content script, one keyword
@@ -6,19 +6,21 @@ brain — and the **2.0 block policy** carried through: every automatic block is
 **exactly 24 hours**, enforced **7 days a week**, and the clock is the only unlock.
 The Sunday exemption is deleted.
 
-3.1 adds an **on-device content classifier**: education, memory training,
-self-improvement, entertainment, and **18+** are recognised from the video
-title, channel, and URL. The default **Only useful** feed keeps learning and
-Allowed topics, hides entertainment, and hard-blocks 18+ content. No video
-download, no model call, no network.
+3.2 adds a local **Classifier Inspector** and **teachable channel verdicts**:
+paste any title/channel/URL to see the category, confidence, scores, and exact
+signals, and make the existing 👍/👎 channel marks show or hide that channel in
+the YouTube feed. 3.1 added the **on-device content classifier** for education,
+memory training, self-improvement, entertainment, and **18+**. The default
+**Only useful** feed keeps learning and Allowed topics, hides entertainment,
+and hard-blocks 18+ content. No video download, no model call, no network.
 
 ## Demo
 
-<img src="assets/showcase.gif" alt="Focus Suite 3.1 showcase — Today, Sites and Blocks" width="100%">
+<img src="assets/showcase.gif" alt="Focus Suite 3.2 showcase — Today, Sites and Blocks" width="100%">
 
 *The 12-second tour: real popup, seeded local state, no network.*
 
-<img src="assets/proof.gif" alt="Focus Suite 3.1 proof — the 24-hour automatic term and YouTube Focus" width="100%">
+<img src="assets/proof.gif" alt="Focus Suite 3.2 proof — the 24-hour automatic term and YouTube Focus" width="100%">
 
 *The proof: the 24-hour automatic term and the YouTube Focus card, on the real popup.*
 
@@ -42,17 +44,17 @@ download, no model call, no network.
 
 ## What merged, and how
 
-| Concern | Tracker 1.8 | YouTube Focus 1.1 | Suite 3.1 |
+| Concern | Tracker 1.8 | YouTube Focus 1.1 | Suite 3.2 |
 |---|---|---|---|
 | YouTube content scripts | analyzer + blocker | one script | **analyzer (playback) + `youtube-focus.js` (everything that changes the page)** |
 | Hiding | channel videos | layout, Shorts, keywords | **one MutationObserver, one 140 ms pass, one `ytf-*` class namespace** |
 | Video classification | hard-coded word lists | Allowed / Good / Blocked lists | **keyword lists + on-device categories; 18+ hard-blocked, useful-only feed by default** |
 | Shorts | counted as waste, 20 min limit | blocked everywhere | **blocked by default; the 20-min limit remains the backstop if you switch blocking off** |
-| Settings storage | `storage.local` | `storage.sync` | **both, by purpose:** data stays local; keyword lists + toggles sync |
+| Settings storage | `storage.local` | `storage.sync` | **both, by purpose:** data stays local; keyword lists + toggles sync; channel verdicts stay local |
 | UI | 4-tab popup | toolbar popup + options | **4-tab popup (YouTube Focus card in Blocks) + keyword options page** |
 | Block terms | 2 days | n/a | **24 h, 7/7, no lift** |
 | Permissions | tabs, storage, alarms, idle, favicon, DNR, notifications, downloads | storage | union of both (YouTube Focus adds nothing new) |
-| Tests | empty stubs | 62 browser checks | **35 engine + 28 classifier + 28 policy/merge checks, plain Node** |
+| Tests | empty stubs | 62 browser checks | **35 engine + 33 classifier + 34 policy/merge checks, plain Node** |
 
 ## YouTube Focus (all on-device)
 
@@ -65,6 +67,14 @@ download, no model call, no network.
   `adult_18plus`, or `unknown`. Education, memory, and self-improvement pass; entertainment is
   hidden in Balanced and Only useful; unknown is hidden only in Only useful. The toggle lives in
   the YouTube Focus card and Options.
+- **Teachable channel verdicts** — the existing 👍/👎 marks on watched channels now affect the
+  feed immediately. A **useful** channel is shown even when the classifier would hide it; a
+  **useless** channel is hidden even when a keyword would allow it. 18+, blocked channels, and
+  Shorts still win. Verdicts persist in `storage.local` and update open tabs.
+- **Classifier inspector** — Options has a local test bench with presets for memory, MIT,
+  Huberman, GTA fails, Shorts, 18+, and neutral content. It shows the category, confidence,
+  five score meters, exact signals, density, short-form detection, and whether the current mode
+  would show or hide the item. No network request.
 - **18+ hard block** — adult tiles are never revealable, a `/watch` page flagged as 18+ gets a
   full-page local shield, and known adult domains are blocked at the network layer by
   `declarativeNetRequest`. Turning the classifier off does **not** disable the 18+ block.
@@ -75,7 +85,8 @@ download, no model call, no network.
 
 Matching rules (`yt-engine.js`): case-insensitive · left word boundary only (`focus` matches
 "focusing", `art` does not match "smart") · multi-word keywords match spaces or hyphens ·
-input is regex-escaped (`18+`, `c++`, `node.js`) · **Allowed always wins over Blocked.**
+input is regex-escaped (`18+`, `c++`, `node.js`) · **Allowed always wins over Blocked** ·
+**channel verdicts override keyword lists**; 18+, blocked channels, and Shorts still win.
 
 ## Focus Tracker (all local)
 
@@ -83,6 +94,20 @@ Honest time tracking (focused window, idle-aware, sleep gaps dropped) · nightly
 catch-up · **locked 24h auto-detox** · **40/20 YouTube guard (24h)** · channel blocking ·
 path-level study rules + 5–8 PM goal · learned study reminder · analysis-first clear history ·
 block-fire log with exact inputs · opt-in numbers-only cloud AI review.
+
+## New in 3.2
+
+- **Classifier Inspector** — `options.html` now loads `content-classifier.js` and offers a local
+  test bench. Presets cover memory, MIT algorithms, Huberman focus, GTA fails, a prank Short,
+  18+, and neutral content. Results include the category, confidence, all five scores, exact
+  signals, density, short-form detection, and the current show/hide verdict.
+- **Teachable channel verdicts** — `youtube-focus.js` now reads `channelVerdicts` from
+  `chrome.storage.local`. The popup's existing 👍/👎 buttons therefore change the feed
+  immediately, not just the tracker's waste count. Adult, blocked-channel, and Shorts hard blocks
+  remain first.
+- **How it decides** — a compact five-layer explainer sits inside the inspector so the local
+  heuristic is inspectable instead of opaque.
+- **More tests** — 5 new classifier preset checks and 6 new policy/merge checks.
 
 ## New in 3.1
 
@@ -111,14 +136,14 @@ block-fire log with exact inputs · opt-in numbers-only cloud AI review.
 | `manifest.json` | MV3 · Chrome 110+ · options page · 2 YouTube content-script entries |
 | `background.js` | Service worker: tracking, 24h locks, reviews, reminder, AI, adult-domain DNR rules |
 | `popup.html/css/js` | The 4-tab popup (YouTube Focus card + classifier toggle live in **Blocks**) |
-| `options.html/js` | Keyword list + classifier editor with sync-quota meter, export/import |
+| `options.html/js` | Keyword lists, classifier toggle, local Classifier Inspector, five-layer explainer, export/import |
 | `yt-defaults.js` | Default settings + keyword lists (shared everywhere) |
 | `yt-engine.js` | Pure, DOM-free keyword engine (shared everywhere, Node-testable) |
 | `content-classifier.js` | Pure, DOM-free education / memory / self-improvement / entertainment / 18+ classifier |
 | `youtube-focus.js` / `.css` | Page-changing content script: layout, Shorts, keywords, classifier tiles, 18+ watch shield |
 | `youtube-analyzer.js` | Real-playback reporting every 15 s |
 | `make_icons.py` | Regenerates `icons/` (pure stdlib) |
-| `tests/` | `engine.test.js` (35) · `classifier.test.js` (28) · `policy.test.js` (28) — `node tests/…` |
+| `tests/` | `engine.test.js` (35) · `classifier.test.js` (33) · `policy.test.js` (34) — `node tests/…` |
 
 ## Known limits (honest list)
 
@@ -132,7 +157,18 @@ block-fire log with exact inputs · opt-in numbers-only cloud AI review.
   false positives; 18+ has no reveal button.
 - The network-level 18+ shield covers the curated `ADULT_DOMAINS` list. A brand-new adult domain
   not on the list is handled only by the title/channel classifier when it appears on YouTube.
-- Firefox is not part of 3.1: the service-worker background model differs. Planned for a later release.
+- Channel verdicts filter the YouTube feed; they do not block a direct `/watch` URL. Blocked
+  channels and 18+ still do.
+- Firefox is not part of 3.2: the service-worker background model differs. Planned for a later release.
+
+## Origin
+
+The classifier and inspector were extracted from the standalone
+`build-content-classification-feature` prototype. Its Next.js dashboard, Postgres
+schema, swap bank, challenge gate, and API are **not** part of Focus Suite and
+were not carried over. The portable pieces are `content-classifier.js`, the
+Options inspector, and the five-layer explainer; everything else stays local to
+the extension.
 
 ## Privacy
 

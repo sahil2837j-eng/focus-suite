@@ -1,4 +1,4 @@
-/* Focus Suite 3.1 — content classifier tests.
+/* Focus Suite 3.2 — content classifier tests.
    Run:  node tests/classifier.test.js
    Pure Node, no browser. Locks the local education / memory / self-improvement /
    entertainment / 18+ decision rules and the useful-only verdict table. */
@@ -30,6 +30,39 @@ eq("deep work is self_improvement", classify("Deep Work: rules for focused succe
 eq("prank short is entertainment", classify("Funniest pranks", { url: "https://www.youtube.com/shorts/abc" }).category, "entertainment");
 eq("neutral how-it-works stays unknown", classify("How bridges are built").category, "unknown");
 eq("Pakistani drama stays unknown (Allowed handles it)", classify("Pakistani drama episode 12").category, "unknown");
+
+console.log("Inspector presets");
+const mit = C.classify({
+  url: "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms/",
+  title: "MIT 6.006: Introduction to Algorithms - Lecture 1",
+  channelOrCreator: "MIT OpenCourseWare",
+  description: "Peak finding, asymptotic notation, Big-O complexity and recurrences.",
+  tags: ["mit opencourseware", "algorithms", "lecture"]
+});
+eq("MIT lecture is education", mit.category, "education");
+const huberman = C.classify({
+  url: "https://www.youtube.com/watch?v=QmOF0crdyRU",
+  title: "Controlling Your Dopamine For Motivation, Focus & Drive",
+  channelOrCreator: "Andrew Huberman",
+  description: "Neuroscience of dopamine and sustained deep work focus.",
+  tags: ["andrew huberman", "dopamine detox", "deep work"]
+});
+truthy("Huberman focus is useful", C.isUseful(huberman.category));
+const gta = C.classify({
+  url: "https://www.youtube.com/watch?v=gta5-funny-fails",
+  title: "GTA 5 FUNNIEST MOMENTS & RAGE FAILS COMPILATION #89",
+  channelOrCreator: "Gaming Central Fails",
+  tags: ["funny moments", "fails compilation", "try not to laugh"]
+});
+eq("GTA fails is entertainment", gta.category, "entertainment");
+const adultPreset = C.classify({
+  url: "https://pornhub.com/view_video.php?viewkey=ph987654",
+  title: "Uncensored 18+ Adult Video XXX Leaked",
+  channelOrCreator: "Adult Network Studio",
+  tags: ["xxx", "porn", "erotic", "nsfw", "18+"]
+});
+eq("adult preset is 18+", adultPreset.category, "adult_18plus");
+eq("adult preset hard-blocks", C.verdict(adultPreset, { smartFilter: false, mode: "off" }).hard, true);
 eq("lookalike domain is not an adult domain", C.classify({ url: "https://notpornhub.com/watch", title: "How bridges are built" }).category, "unknown");
 eq("lookalike domain is not an education domain", C.classify({ url: "https://youtube.com.evil.example/watch", title: "random clip" }).category, "unknown");
 

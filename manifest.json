@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Focus Suite — Time Tracker & YouTube Focus",
   "short_name": "Focus Suite",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "minimum_chrome_version": "110",
   "description": "Honest time tracking, locked 24-hour blocks, nightly reviews, and a useful-only YouTube with an on-device 18+ shield. Local-first.",
   "permissions": [

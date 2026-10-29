@@ -630,7 +630,9 @@ view.addEventListener("click", async (e) => {
     if (!res.ok) { toast("Couldn't save verdict", res.error); return; }
     await refresh();
     toast(el.dataset.verdict === "useful" ? "Marked useful, forever" : "Marked useless, forever",
-      "Verdicts override keywords and re-count today. They can arm a block, never lift one.");
+      el.dataset.verdict === "useful"
+        ? "Shown in your YouTube feed now. Verdicts override keywords; 18+ stays blocked."
+        : "Hidden from your YouTube feed now. Verdicts override keywords; 18+ stays blocked.");
   }
   else if (a === "ytfToggle") {
     const key = el.dataset.key;

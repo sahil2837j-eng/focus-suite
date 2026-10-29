@@ -1,5 +1,5 @@
-/* Focus Suite 3.1 — options.js
-   Keyword list + classifier editor. Lists live in chrome.storage.sync, one
+/* Focus Suite 3.2 — options.js
+   Keyword list + classifier editor + local inspector. Lists live in chrome.storage.sync, one
    key per list (each key has an 8 KB quota). Loosening protections is allowed
    — but never on impulse: removing Blocked keywords asks for a deliberate
    confirmation. The 18+ hard block itself has no off switch. */
@@ -7,12 +7,72 @@
 (function () {
   var D = FOCUS_DEFAULTS;
   var E = FocusEngine;
+  var C = window.ContentClassifier || null;
   var KEYS = ["ytfSettings", "ytfAllowed", "ytfGood", "ytfBlocked"];
   var LISTS = [["allowed", "ytfAllowed"], ["good", "ytfGood"], ["blocked", "ytfBlocked"]];
   var QUOTA_ITEM = 8192;
   var WARN_AT = 7000;
   var $ = function (id) { return document.getElementById(id); };
   var savedBlocked = D.blocked.slice();
+  var currentSettings = Object.assign({}, D.settings);
+
+  var PRESETS = {
+    memory: {
+      url: "https://www.youtube.com/watch?v=p9IOq5l2fV0",
+      title: "How to Build a Memory Palace (Method of Loci Tutorial)",
+      channel: "Cognitive Mastery Lab",
+      description: "Learn how the ancient Greeks and World Memory Champions use spatial navigation to memorize thousands of facts, numbers, and vocabulary using memory palaces.",
+      tags: "memory palace, method of loci, spaced repetition, mnemonics, memorization technique"
+    },
+    mit: {
+      url: "https://ocw.mit.edu/courses/6-006-introduction-to-algorithms/",
+      title: "MIT 6.006: Introduction to Algorithms - Lecture 1",
+      channel: "MIT OpenCourseWare",
+      description: "Peak finding, asymptotic notation, Big-O complexity and recurrences. High-level academic tutorial for computer science students.",
+      tags: "mit opencourseware, algorithms, data structures, computer science, lecture"
+    },
+    huberman: {
+      url: "https://www.youtube.com/watch?v=QmOF0crdyRU",
+      title: "Controlling Your Dopamine For Motivation, Focus & Drive",
+      channel: "Andrew Huberman",
+      description: "Dr. Andrew Huberman discusses the neuroscience of dopamine, how quick-hit social media collapses baseline motivation, and how to build sustained deep work focus.",
+      tags: "andrew huberman, dopamine detox, deep work, habit stacking, neuroscience"
+    },
+    gta: {
+      url: "https://www.youtube.com/watch?v=gta5-funny-fails",
+      title: "GTA 5 FUNNIEST MOMENTS & RAGE FAILS COMPILATION #89",
+      channel: "Gaming Central Fails",
+      description: "Watch hilarious gaming glitches, rage quit reactions, and funny moments in GTA Online! Try not to laugh challenge!",
+      tags: "funny moments, fails compilation, try not to laugh, gta 5, rage quit"
+    },
+    shorts: {
+      url: "https://www.youtube.com/shorts/craziest-prank-gone-wrong",
+      title: "CRAZY PUBLIC PRANK GONE WRONG IN TARGET 😱💀 #shorts",
+      channel: "Viral Prankster Central",
+      description: "You won't believe what happened next!! Subscribe for part 2!",
+      tags: "prank, shorts, viral, exposed"
+    },
+    adult: {
+      url: "https://pornhub.com/view_video.php?viewkey=ph987654",
+      title: "Uncensored 18+ Adult Video XXX Leaked",
+      channel: "Adult Network Studio",
+      description: "Explicit erotic adult video with high NSFW keywords.",
+      tags: "xxx, porn, erotic, nsfw, 18+"
+    },
+    neutral: {
+      url: "https://www.youtube.com/watch?v=bridges",
+      title: "How bridges are built",
+      channel: "Engineering Explained",
+      description: "A short engineering explainer about bridge construction.",
+      tags: ""
+    }
+  };
+
+  function esc(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
 
   function say(text, isErr) {
     var s = $("status");
@@ -34,8 +94,93 @@
     });
   }
 
+  function applyPreset(name) {
+    var p = PRESETS[name];
+    if (!p) return;
+    $("inspectTitle").value = p.title;
+    $("inspectChannel").value = p.channel;
+    $("inspectUrl").value = p.url;
+    $("inspectDescription").value = p.description;
+    $("inspectTags").value = p.tags;
+    $("inspectTranscript").value = "";
+    inspect();
+  }
+
+  function clearInspect() {
+    ["inspectTitle", "inspectChannel", "inspectUrl", "inspectDescription", "inspectTags", "inspectTranscript"].forEach(function (id) {
+      $(id).value = "";
+    });
+    $("inspectResult").hidden = true;
+    $("inspectResult").innerHTML = "";
+    $("inspectStatus").textContent = "";
+  }
+
+  function renderInspect(result, v) {
+    var labels = {
+      adult_18plus: "18+ adult",
+      entertainment: "Entertainment",
+      education: "Education",
+      memory_cognitive: "Memory & cognitive",
+      self_improvement: "Self-improvement",
+      unknown: "Unknown"
+    };
+    var cls = v.hard ? "hard" : v.hide ? "hide" : "allow";
+    var verdict = v.hard ? "Hard blocked" : v.hide ? "Hidden now" : "Shown now";
+    var rows = [
+      ["18+ adult", result.scores.adult_18plus, "var(--coral)"],
+      ["Entertainment", result.scores.entertainment, "var(--sand)"],
+      ["Memory & cognitive", result.scores.memory_cognitive, "#c084fc"],
+      ["Education", result.scores.education, "var(--mint)"],
+      ["Self-improvement", result.scores.self_improvement, "var(--brand)"]
+    ];
+    var html = '<div class="inspect-head"><div><b>' + esc(labels[result.category] || result.category) +
+      '</b><span class="badge ' + cls + '">' + verdict + '</span></div>' +
+      '<span class="meta" style="margin:0">' + result.confidence + '% confidence · density ' + result.densityScore + '</span></div>' +
+      '<p style="margin:8px 0 0;color:var(--muted)">' + esc(result.explanation) + '</p><div style="margin-top:10px">';
+    rows.forEach(function (r) {
+      var n = Math.max(0, Math.min(100, Math.round(r[1])));
+      html += '<div class="meter"><span>' + esc(r[0]) + '</span><span class="track"><span class="fill" style="width:' + n +
+        '%;background:' + r[2] + '"></span></span><span>' + n + '%</span></div>';
+    });
+    html += '</div><div class="signals">' + result.signalsDetected.map(function (sig) {
+      return '<span class="signal">🔍 ' + esc(sig) + '</span>';
+    }).join("") + '</div>';
+    if (result.isShortForm) {
+      html += '<p style="margin:8px 0 0;color:var(--sand);font-size:12px">Short-form format detected. In Only useful, it is hidden.</p>';
+    }
+    $("inspectResult").innerHTML = html;
+    $("inspectResult").hidden = false;
+  }
+
+  function inspect() {
+    var status = $("inspectStatus");
+    if (!C) {
+      status.textContent = "Classifier script did not load.";
+      return;
+    }
+    var title = $("inspectTitle").value.trim();
+    var url = $("inspectUrl").value.trim();
+    if (!title && !url) {
+      status.textContent = "Add a title or URL first.";
+      return;
+    }
+    var tags = $("inspectTags").value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    var result = C.classify({
+      url: url,
+      title: title,
+      channelOrCreator: $("inspectChannel").value.trim(),
+      description: $("inspectDescription").value.trim(),
+      tags: tags,
+      transcriptSample: $("inspectTranscript").value.trim()
+    });
+    var st = Object.assign({}, currentSettings, { smartFilter: $("smartFilter").checked });
+    renderInspect(result, C.verdict(result, st));
+    status.textContent = "Inspected locally — no network.";
+  }
+
   function fill(s) {
     var st = Object.assign({}, D.settings, s.ytfSettings || {});
+    currentSettings = st;
     $("allowed").value = (s.ytfAllowed || D.allowed).join("\n");
     $("good").value = (s.ytfGood || D.good).join("\n");
     $("blocked").value = (s.ytfBlocked || D.blocked).join("\n");
@@ -74,6 +219,7 @@
         smartFilter: $("smartFilter").checked
       });
       next.ytfSettings = settings;
+      currentSettings = settings;
       chrome.storage.sync.set(next, function () {
         if (chrome.runtime.lastError) { say(chrome.runtime.lastError.message, true); return; }
         savedBlocked = next.ytfBlocked.slice();
@@ -99,7 +245,7 @@
   function exportJson() {
     chrome.storage.sync.get(KEYS, function (s) {
       var data = {
-        focusSuite: "3.1",
+        focusSuite: "3.2",
         settings: Object.assign({}, D.settings, s.ytfSettings || {}),
         allowed: s.ytfAllowed || D.allowed, good: s.ytfGood || D.good, blocked: s.ytfBlocked || D.blocked
       };
@@ -131,6 +277,14 @@
   }
 
   ["allowed", "good", "blocked"].forEach(function (id) { $(id).addEventListener("input", updateMeters); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-preset]"), function (b) {
+    b.addEventListener("click", function () { applyPreset(b.getAttribute("data-preset")); });
+  });
+  $("inspectRun").addEventListener("click", inspect);
+  $("inspectClear").addEventListener("click", clearInspect);
+  ["inspectTitle", "inspectUrl"].forEach(function (id) {
+    $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); inspect(); } });
+  });
   $("save").addEventListener("click", save);
   $("reset").addEventListener("click", reset);
   $("export").addEventListener("click", exportJson);

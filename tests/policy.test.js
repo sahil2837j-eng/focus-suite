@@ -11,6 +11,10 @@ const bg = fs.readFileSync(path.join(__dirname, "..", "background.js"), "utf8");
 const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "manifest.json"), "utf8"));
 const popup = fs.readFileSync(path.join(__dirname, "..", "popup.js"), "utf8")
   + fs.readFileSync(path.join(__dirname, "..", "popup.html"), "utf8");
+const options = fs.readFileSync(path.join(__dirname, "..", "options.js"), "utf8")
+  + fs.readFileSync(path.join(__dirname, "..", "options.html"), "utf8");
+const classifier = fs.readFileSync(path.join(__dirname, "..", "content-classifier.js"), "utf8");
+const focusScript = fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8");
 
 let failed = 0;
 function check(name, condition) {
@@ -60,8 +64,6 @@ check("shield counters carry numbers only (no titles, no URLs)",
   /type:\s*"ytf-shield",\s*hidden:\s*pending\.hidden,\s*shorts:\s*pending\.shorts,\s*adult:\s*pending\.adult/.test(fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8")));
 
 console.log("18+ hard block");
-const classifier = fs.readFileSync(path.join(__dirname, "..", "content-classifier.js"), "utf8");
-const focusScript = fs.readFileSync(path.join(__dirname, "..", "youtube-focus.js"), "utf8");
 check("classifier exposes adult domains and a verdict helper",
   classifier.includes("ADULT_DOMAINS") && classifier.includes("function verdict"));
 check("18+ is always hard-blocked in the pure verdict",
@@ -72,6 +74,20 @@ check("worker adds permanent adult-domain DNR rules",
   bg.includes("RID.adult") && bg.includes("MAX_ADULT_DOMAINS") && bg.includes("self.ContentClassifier.ADULT_DOMAINS"));
 check("popup exposes the classifier toggle",
   popup.includes("smartFilter") && popup.includes("Smart content classifier"));
+
+console.log("Classifier inspector + channel verdicts");
+check("options loads the shared classifier before its own script",
+  /<script src="content-classifier\.js"><\/script>\s*<script src="options\.js"><\/script>/.test(options));
+check("options has a local inspector with presets",
+  options.includes("inspectTitle") && options.includes("inspectRun") && options.includes("data-preset"));
+check("options inspector uses the shared classifier and verdict helper",
+  options.includes("C.classify") && options.includes("C.verdict") && options.includes("renderInspect"));
+check("options explains the five local layers",
+  options.includes("How it decides") && options.includes("05 · Policy"));
+check("YouTube page loads channel verdicts from local storage",
+  focusScript.includes("channelVerdicts") && focusScript.includes('chrome.storage.local.get(["blockedChannels", "channelVerdicts"]'));
+check("channel verdicts override keywords but never adult hard blocks",
+  focusScript.includes("channel-verdict") && focusScript.indexOf("result.category === \"adult_18plus\"") < focusScript.indexOf("channelVerdict === \"useful\""));
 
 if (failed) {
   console.error(`\n${failed} policy test(s) failed. 2.0 means: 24h, 7/7, clock only.`);

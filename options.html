@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Focus Suite — YouTube keyword lists &amp; classifier</title>
+<title>Focus Suite — YouTube settings &amp; classifier inspector</title>
 <style>
   :root { --bg:#0a0c12; --line:rgba(255,255,255,.1); --ink:#f6f7fa; --muted:#8d95a8; --faint:#5f687c; --brand:#818cf8; --mint:#4ade80; --coral:#fb7185; --sand:#f3d6a6; }
   * { box-sizing: border-box; }
@@ -33,17 +33,44 @@
   .rules { font-size:12px; color:var(--muted); margin:0; padding-left:18px; }
   .rules li { margin:3px 0; }
   code { font-family:Consolas, monospace; color:#d6dae3; }
+  .presets { display:flex; flex-wrap:wrap; gap:6px; margin:10px 0 12px; }
+  .preset { padding:6px 9px; border-radius:999px; font-size:11.5px; background:rgba(255,255,255,.04); }
+  .preset:hover { background:rgba(129,140,248,.16); border-color:rgba(129,140,248,.45); }
+  .inspect-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .inspect-grid .wide { grid-column:1/-1; }
+  .inspect-grid label { display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--muted); font-weight:600; }
+  .inspect-grid input, .inspect-grid textarea { width:100%; background:rgba(0,0,0,.3); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:8px 9px; font:12.5px/1.45 inherit; outline:none; }
+  .inspect-grid textarea { min-height:62px; resize:vertical; }
+  .inspect-grid input:focus, .inspect-grid textarea:focus { border-color:rgba(129,140,248,.6); }
+  .inspect-result { margin-top:12px; border:1px solid var(--line); border-radius:12px; padding:12px; background:rgba(0,0,0,.18); }
+  .inspect-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+  .badge { display:inline-block; margin-left:6px; padding:2px 7px; border-radius:999px; font-size:10.5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; border:1px solid var(--line); }
+  .badge.allow { color:var(--mint); border-color:rgba(74,222,128,.35); background:rgba(74,222,128,.1); }
+  .badge.hide { color:var(--sand); border-color:rgba(243,214,166,.35); background:rgba(243,214,166,.1); }
+  .badge.hard { color:var(--coral); border-color:rgba(251,113,133,.4); background:rgba(251,113,133,.12); }
+  .meter { display:grid; grid-template-columns:145px 1fr 42px; gap:8px; align-items:center; margin:6px 0; font-size:11.5px; color:var(--muted); }
+  .meter .track { height:6px; background:rgba(255,255,255,.08); border-radius:999px; overflow:hidden; }
+  .meter .fill { height:100%; border-radius:999px; }
+  .signals { display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .signal { font-size:11px; padding:4px 7px; border-radius:7px; background:rgba(255,255,255,.05); border:1px solid var(--line); color:#c9cedb; }
+  details.how { margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  details.how summary { cursor:pointer; color:var(--brand); font-size:12.5px; font-weight:600; }
+  .how-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin-top:10px; }
+  .how-step { border:1px solid var(--line); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
+  .how-step b { display:block; font-size:11.5px; color:var(--ink); margin-bottom:3px; }
+  .how-step span { font-size:11px; color:var(--muted); }
+  @media (max-width:620px) { .inspect-grid { grid-template-columns:1fr; } .meter { grid-template-columns:110px 1fr 38px; } }
 </style>
 </head>
 <body>
 <main>
-  <h1>YouTube Focus settings</h1>
+  <h1>YouTube Focus settings &amp; classifier inspector</h1>
   <p class="lead">One shared brain: these lists and the on-device classifier drive the on-page filtering <b>and</b> how Focus Suite classifies the videos you actually watch (waste / educational / 18+). One keyword per line, or comma-separated. Settings sync across your Chrome profile.</p>
 
   <div class="grid">
     <section class="card">
-      <h2><span class="dot" style="background:var(--mint)"></span> Allowed — always shown</h2>
-      <p>Wins over everything, including Blocked and Only useful mode. Use it for false positives (<code>failsafe</code> vs <code>fail</code>) and shows you love.</p>
+      <h2><span class="dot" style="background:var(--mint)"></span> Allowed — shown by default</h2>
+      <p>Wins over Blocked and Only useful mode. Use it for false positives (<code>failsafe</code> vs <code>fail</code>) and shows you love. A channel you explicitly mark useless can still hide it; 18+ is always blocked.</p>
       <textarea id="allowed" spellcheck="false"></textarea>
       <div class="meta"><span id="allowedCount"></span><span id="allowedSize"></span></div>
     </section>
@@ -70,6 +97,45 @@
     </section>
 
     <section class="card">
+      <h2><span class="dot" style="background:var(--sand)"></span> Classifier inspector — test any video locally</h2>
+      <p>Paste a title, channel, and URL to see exactly what the on-device classifier sees. Nothing leaves this tab: no network request, no video download, no API key.</p>
+      <div class="presets" id="inspectPresets">
+        <button type="button" class="preset" data-preset="memory">🧠 Memory palace</button>
+        <button type="button" class="preset" data-preset="mit">🎓 MIT algorithms</button>
+        <button type="button" class="preset" data-preset="huberman">⚡ Huberman focus</button>
+        <button type="button" class="preset" data-preset="gta">🎮 GTA fails</button>
+        <button type="button" class="preset" data-preset="shorts">📱 Prank short</button>
+        <button type="button" class="preset" data-preset="adult">🔞 18+ sample</button>
+        <button type="button" class="preset" data-preset="neutral">🌉 Neutral</button>
+      </div>
+      <div class="inspect-grid">
+        <label>Title<input id="inspectTitle" type="text" autocomplete="off" placeholder="e.g. How to Build a Memory Palace" /></label>
+        <label>Channel<input id="inspectChannel" type="text" autocomplete="off" placeholder="e.g. Andrew Huberman" /></label>
+        <label class="wide">URL<input id="inspectUrl" type="text" autocomplete="off" placeholder="https://www.youtube.com/watch?v=..." /></label>
+        <label class="wide">Description (optional)<textarea id="inspectDescription" rows="2" placeholder="Description snippet to add context..."></textarea></label>
+        <label>Tags, comma separated<input id="inspectTags" type="text" autocomplete="off" placeholder="memory, science, tutorial" /></label>
+        <label>Transcript sample (optional)<input id="inspectTranscript" type="text" autocomplete="off" placeholder="Optional spoken words..." /></label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="primary" id="inspectRun" type="button">Inspect locally</button>
+        <button id="inspectClear" type="button">Clear</button>
+        <span id="inspectStatus" class="meta" role="status" aria-live="polite" style="margin:0"></span>
+      </div>
+      <div id="inspectResult" class="inspect-result" aria-live="polite" hidden></div>
+      <details class="how">
+        <summary>How it decides (5 local layers)</summary>
+        <div class="how-grid">
+          <div class="how-step"><b>01 · Domain</b><span>Adult, education, and entertainment domain lists, with exact/suffix matching.</span></div>
+          <div class="how-step"><b>02 · Metadata</b><span>Title, channel, description, tags, and transcript — whatever is available.</span></div>
+          <div class="how-step"><b>03 · Lexicon</b><span>Weighted markers for memory, STEM, self-improvement, entertainment, and 18+.</span></div>
+          <div class="how-step"><b>04 · Format</b><span>Shorts, ALL-CAPS clickbait, and sensational punctuation add entertainment weight.</span></div>
+          <div class="how-step"><b>05 · Policy</b><span>Only useful hides entertainment and unknown; 18+ is always hard-blocked.</span></div>
+        </div>
+        <p style="margin:10px 0 0">The classifier is a transparent heuristic, not a moral verdict. User Allowed keywords and channel verdicts can override category filtering; 18+ remains the one hard exception.</p>
+      </details>
+    </section>
+
+    <section class="card">
       <h2>Search override</h2>
       <p>A search that matches the right list skips filtering for that results page.</p>
       <div class="row">
@@ -89,6 +155,7 @@
         <li>Multi-word keywords match spaces or hyphens: <code>geo tv</code> matches “geo-tv”.</li>
         <li>Special characters are safe: <code>18+</code>, <code>c++</code>, <code>node.js</code>.</li>
         <li>Allowed always wins over Blocked.</li>
+        <li>Channel verdicts (👍/👎) override keyword lists; 18+ still wins.</li>
       </ul>
     </section>
   </div>
@@ -104,6 +171,7 @@
 </main>
 <script src="yt-defaults.js"></script>
 <script src="yt-engine.js"></script>
+<script src="content-classifier.js"></script>
 <script src="options.js"></script>
 </body>
 </html>

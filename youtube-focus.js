@@ -1,9 +1,10 @@
-/* Focus Suite 3.1 — youtube-focus.js (document_start)
+/* Focus Suite 3.2 — youtube-focus.js (document_start)
    ONE content script for everything that changes what YouTube shows:
      • layout cleanup  (home feed, sidebar/related, end screens, promos)
      • Shorts blocking (nav, shelves, cards, /shorts/ pages, click interception)
      • keyword filtering (Off / Balanced / Strict + search override + reveal pill)
      • on-device content classifier (education / memory / self-improvement / 18+)
+     • channel verdicts (👍 useful / 👎 useless) applied to the feed
      • blocked-channel hiding + watch-page bounce  (from Focus Tracker)
    One MutationObserver, one debounced pass. Settings are cached in
    localStorage so the first paint is already clean. Playback accounting
@@ -31,6 +32,7 @@
   var lists = { allowed: D.allowed.slice(), good: D.good.slice(), blocked: D.blocked.slice() };
   var compiled = E.compile(lists);
   var handles = []; // blocked channel handles, lowercase, no "@"
+  var channelVerdicts = {}; // lowercased channel -> "useful" | "useless"
   var rev = 0; // bumps whenever a setting changes, so cached tile verdicts refresh
   var revealed = false;
   var forcedShortsScreen = false;
@@ -79,11 +81,12 @@
       });
     } catch (e) { /* extension reloaded under us */ }
     try {
-      chrome.storage.local.get(["blockedChannels"], function (s) {
+      chrome.storage.local.get(["blockedChannels", "channelVerdicts"], function (s) {
         void chrome.runtime.lastError;
         handles = (s.blockedChannels || [])
           .map(function (c) { return String((c && c.handle) || "").replace(/^@/, "").toLowerCase(); })
           .filter(Boolean);
+        channelVerdicts = s.channelVerdicts || {};
         rev++;
         queue();
       });
@@ -150,6 +153,22 @@
       tile.classList.remove("ytf-hidden");
       tile.setAttribute("data-ytf-why", hard);
       countShield(tile, hard);
+      return;
+    }
+
+    /* Channel verdicts are the user's explicit thumbs-up/down. They override
+       keyword lists (matching the popup copy), but never the hard blocks above:
+       18+, blocked channels, and Shorts still win. */
+    var channelVerdict = channelVerdicts[meta.channel.toLowerCase().trim()];
+    if (channelVerdict === "useful") {
+      tile.classList.remove("ytf-hidden");
+      tile.removeAttribute("data-ytf-why");
+      return;
+    }
+    if (channelVerdict === "useless") {
+      tile.classList.add("ytf-hidden");
+      tile.setAttribute("data-ytf-why", "channel-verdict");
+      countShield(tile, "keyword");
       return;
     }
 
@@ -344,7 +363,7 @@
   try {
     chrome.storage.onChanged.addListener(function (changes, area) {
       if (area === "sync" && SETTINGS_KEYS.some(function (k) { return changes[k]; })) load();
-      if (area === "local" && changes.blockedChannels) load();
+      if (area === "local" && (changes.blockedChannels || changes.channelVerdicts)) load();
     });
   } catch (e) { /* live updates are a bonus */ }
 

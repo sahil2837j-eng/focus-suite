@@ -1,4 +1,4 @@
-/* Focus Suite 3.1 — yt-defaults.js
+/* Focus Suite 3.2 — yt-defaults.js
    Default YouTube Focus settings + keyword lists. Assigned to globalThis so
    it is safe if injected twice, and shared by: the content script, the
    service worker (importScripts), the popup and the options page. */

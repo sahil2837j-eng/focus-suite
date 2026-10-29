@@ -4,7 +4,7 @@
   "short_name": "Focus Suite",
   "version": "3.1.0",
   "minimum_chrome_version": "110",
-  "description": "Focus Tracker + YouTube Focus in one extension: honest time tracking, locked 24-hour blocks (no Sunday unlock), nightly reviews, and a distraction-free YouTube with an on-device classifier that blocks 18+ content and shows education, memory, and self-improvement. Local-first.",
+  "description": "Honest time tracking, locked 24-hour blocks, nightly reviews, and a useful-only YouTube with an on-device 18+ shield. Local-first.",
   "permissions": [
     "tabs",
     "storage",

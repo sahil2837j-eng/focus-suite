@@ -38,7 +38,17 @@
   var forcedShortsScreen = false;
   var scheduled = false;
   var counted = typeof WeakSet === "function" ? new WeakSet() : null;
-  var pending = { hidden: 0, shorts: 0, adult: 0 };
+  var SHIELD_CATS = ["education", "memory_cognitive", "self_improvement", "entertainment", "unknown", "adult_18plus"];
+  function emptyCats() {
+    var out = {};
+    for (var i = 0; i < SHIELD_CATS.length; i++) out[SHIELD_CATS[i]] = 0;
+    return out;
+  }
+  function hasCats(cats) {
+    for (var i = 0; i < SHIELD_CATS.length; i++) if (cats[SHIELD_CATS[i]] > 0) return true;
+    return false;
+  }
+  var pending = { hidden: 0, shorts: 0, adult: 0, cats: emptyCats() };
 
   function clone(o) { return JSON.parse(JSON.stringify(o)); }
   function root() { return document.documentElement; }
@@ -108,6 +118,8 @@
   function countShield(tile, kind) {
     if (!counted || counted.has(tile)) return;
     counted.add(tile);
+    var cat = tile.getAttribute("data-ytf-cat");
+    if (cat && pending.cats[cat] != null) pending.cats[cat]++;
     if (kind === "shorts") pending.shorts++;
     else if (kind === "adult") pending.adult++;
     else pending.hidden++;
@@ -351,9 +363,9 @@
 
   /* --------------------- shield counters -> tracker ---------------------- */
   function flushShield() {
-    if (!pending.hidden && !pending.shorts && !pending.adult) return;
-    var msg = { type: "ytf-shield", hidden: pending.hidden, shorts: pending.shorts, adult: pending.adult };
-    pending = { hidden: 0, shorts: 0, adult: 0 };
+    if (!pending.hidden && !pending.shorts && !pending.adult && !hasCats(pending.cats)) return;
+    var msg = { type: "ytf-shield", hidden: pending.hidden, shorts: pending.shorts, adult: pending.adult, cats: pending.cats };
+    pending = { hidden: 0, shorts: 0, adult: 0, cats: emptyCats() };
     try { chrome.runtime.sendMessage(msg, function () { void chrome.runtime.lastError; }); } catch (e) { /* ignore */ }
   }
   setInterval(flushShield, 15000);

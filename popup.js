@@ -7,6 +7,16 @@
 const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
 
+/* CSP-safe favicon fallback: inline onerror handlers are blocked by the
+   extension's script-src policy, so listen in the capture phase instead. */
+view.addEventListener("error", (e) => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.dataset.favicon) return;
+  const letter = document.createElement("span");
+  letter.textContent = img.dataset.favicon;
+  img.replaceWith(letter);
+}, true);
+
 let state = null;
 let tab = "today";
 let range = "today";
@@ -238,6 +248,51 @@ function renderToday() {
       <p class="sub" style="margin:0"><b style="color:#d6dae3">Yesterday ·</b> ${fmt(s.yesterday.total)} tracked${s.yesterday.top ? ` · top ${esc(s.yesterday.top.domain)} (${s.yesterday.top.minutes}m)` : ""}.</p>
       ${s.shield && (s.shield.hidden || s.shield.shorts || s.shield.adult) ? `<p class="hint">🛡️ YouTube Focus shielded you today: ${s.shield.hidden} video${s.shield.hidden === 1 ? "" : "s"} hidden · ${s.shield.shorts} Short${s.shield.shorts === 1 ? "" : "s"} blocked · ${s.shield.adult || 0} 18+ blocked.</p>` : ""}
       ${topWaste ? `<p class="hint">Watching: ${esc(topWaste.domain)} — a top-3 day at 30m+ arms a locked 24h detox at midnight.</p>` : ""}
+    </div>
+    ${renderShieldReport(s)}`;
+}
+
+function renderShieldReport(s) {
+  const totals = s.shieldTotals || { hidden: 0, shorts: 0, adult: 0, cats: {} };
+  const cats = totals.cats || {};
+  const defs = [
+    ["education", "Education", "var(--mint)"],
+    ["memory_cognitive", "Memory", "#c084fc"],
+    ["self_improvement", "Self-help", "var(--brand)"],
+    ["entertainment", "Entertainment", "var(--sand)"],
+    ["unknown", "Unknown", "rgba(255,255,255,0.35)"],
+    ["adult_18plus", "18+", "var(--coral)"]
+  ];
+  const totalCats = defs.reduce((a, d) => a + (cats[d[0]] || 0), 0);
+  const activeDays = (s.shield7 || []).filter((d) =>
+    d.hidden || d.shorts || d.adult || defs.some(([k]) => (d.cats || {})[k])
+  ).length;
+  if (!totals.hidden && !totals.shorts && !totals.adult && !totalCats) {
+    return `
+    <div class="card" id="shieldReport">
+      <div class="row-between"><p class="label">7-day classifier report</p><span class="mono dim" style="font-size:8px">on-device</span></div>
+      <p class="hint">No shield activity in the last 7 days. Open YouTube with the classifier on and this fills in.</p>
+    </div>`;
+  }
+  const seg = defs.map(([key, , color]) =>
+    totalCats ? `<i style="width:${((cats[key] || 0) / totalCats) * 100}%;background:${color}"></i>` : ""
+  ).join("");
+  const legend = defs.map(([key, label, color]) =>
+    `<div><i style="background:${color}"></i>${label}<b>${cats[key] || 0}</b></div>`
+  ).join("");
+  return `
+    <div class="card" id="shieldReport">
+      <div class="row-between"><p class="label">7-day classifier report</p><span class="mono dim" style="font-size:8px">filtered tiles</span></div>
+      <div class="metric4">
+        <div class="metric"><p>Hidden</p><b>${totals.hidden}</b></div>
+        <div class="metric"><p>Shorts</p><b>${totals.shorts}</b></div>
+        <div class="metric"><p>18+</p><b style="color:var(--coral)">${totals.adult}</b></div>
+        <div class="metric"><p>Days</p><b>${activeDays}/7</b></div>
+      </div>
+      ${totalCats
+        ? `<div class="stacked">${seg}</div><div class="legend">${legend}</div>`
+        : `<p class="hint">Category counters start after the next YouTube visit with the classifier on.</p>`}
+      <p class="hint">Category mix of hidden/blocked tiles. Counters only — no titles or URLs.</p>
     </div>`;
 }
 
@@ -254,7 +309,7 @@ function renderSites() {
     return `
     <div class="site-row">
       <button class="site-main" data-action="toggleSite" data-domain="${esc(e.domain)}">
-        <span class="fav"><img src="_favicon/?pageUrl=${encodeURIComponent("https://" + e.domain)}&size=32" alt="" onerror="this.outerHTML='${esc(e.domain.charAt(0).toUpperCase())}'"></span>
+        <span class="fav"><img src="_favicon/?pageUrl=${encodeURIComponent("https://" + e.domain)}&size=32" alt="" data-favicon="${esc(e.domain.charAt(0).toUpperCase())}"></span>
         <span class="grow">
           <span class="site-name">${esc(e.domain)} ${locked ? "🔒" : ""}${s.current && s.current.domain === e.domain ? ' <span class="live-dot"></span>' : ""}</span>
           <span class="bar thin" style="display:block"><div style="width:${Math.max(3, pct)}%"></div></span>

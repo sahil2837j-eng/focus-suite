@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Focus Suite — YouTube settings &amp; classifier inspector</title>
+<title>Focus Suite — YouTube settings, classifier inspector &amp; verdicts</title>
 <style>
   :root { --bg:#0a0c12; --line:rgba(255,255,255,.1); --ink:#f6f7fa; --muted:#8d95a8; --faint:#5f687c; --brand:#818cf8; --mint:#4ade80; --coral:#fb7185; --sand:#f3d6a6; }
   * { box-sizing: border-box; }
@@ -25,6 +25,7 @@
   input[type=checkbox] { accent-color:#6366f1; width:16px; height:16px; }
   button { font:600 13px inherit; border:1px solid var(--line); background:rgba(255,255,255,.06); color:var(--ink); padding:9px 14px; border-radius:10px; cursor:pointer; }
   button:hover { background:rgba(255,255,255,.12); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
   button.primary { background:#f6f7fa; color:#06070b; border-color:transparent; }
   button.danger:hover { border-color:rgba(251,113,133,.5); color:var(--coral); }
   .bar { position:sticky; bottom:0; margin-top:18px; padding:12px 0; background:linear-gradient(0deg,var(--bg) 70%,transparent); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -59,6 +60,15 @@
   .how-step { border:1px solid var(--line); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
   .how-step b { display:block; font-size:11.5px; color:var(--ink); margin-bottom:3px; }
   .how-step span { font-size:11px; color:var(--muted); }
+  .verdict-list { display:grid; gap:6px; margin-top:10px; }
+  .verdict-row { display:flex; align-items:center; gap:8px; border:1px solid var(--line); border-radius:10px; padding:8px 9px; background:rgba(255,255,255,.02); }
+  .verdict-name { flex:1; font-size:12px; color:var(--ink); overflow-wrap:anywhere; }
+  .verdict-tag { font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:999px; border:1px solid var(--line); white-space:nowrap; }
+  .verdict-tag.useful { color:var(--mint); border-color:rgba(74,222,128,.35); background:rgba(74,222,128,.1); }
+  .verdict-tag.useless { color:var(--coral); border-color:rgba(251,113,133,.4); background:rgba(251,113,133,.12); }
+  .verdict-remove { padding:4px 8px; font-size:11px; border-radius:8px; background:transparent; color:var(--faint); }
+  .verdict-remove:hover { color:var(--coral); border-color:rgba(251,113,133,.4); }
+  .verdict-remove.armed { color:var(--coral); border-color:rgba(251,113,133,.5); background:rgba(251,113,133,.12); }
   @media (max-width:620px) { .inspect-grid { grid-template-columns:1fr; } .meter { grid-template-columns:110px 1fr 38px; } }
 </style>
 </head>
@@ -133,6 +143,17 @@
         </div>
         <p style="margin:10px 0 0">The classifier is a transparent heuristic, not a moral verdict. User Allowed keywords and channel verdicts can override category filtering; 18+ remains the one hard exception.</p>
       </details>
+    </section>
+
+    <section class="card">
+      <h2><span class="dot" style="background:var(--brand)"></span> Channel verdicts</h2>
+      <p>These are the 👍/👎 marks you made in the popup. Useful channels stay in the feed; useless channels are hidden. 18+, blocked channels, and Shorts still win.</p>
+      <div id="verdictList" class="verdict-list"></div>
+      <p id="verdictEmpty" class="hint">No channel verdicts yet. Watch a video, open the popup, and mark the channel.</p>
+      <div class="row" style="margin-top:10px">
+        <button id="verdictClear" class="danger" type="button" disabled>Clear all verdicts</button>
+        <span id="verdictStatus" class="meta" role="status" aria-live="polite" style="margin:0"></span>
+      </div>
     </section>
 
     <section class="card">

@@ -1,4 +1,4 @@
-/* Focus Suite 3.2 — options.js
+/* Focus Suite 3.3 — options.js
    Keyword list + classifier editor + local inspector. Lists live in chrome.storage.sync, one
    key per list (each key has an 8 KB quota). Loosening protections is allowed
    — but never on impulse: removing Blocked keywords asks for a deliberate
@@ -15,6 +15,9 @@
   var $ = function (id) { return document.getElementById(id); };
   var savedBlocked = D.blocked.slice();
   var currentSettings = Object.assign({}, D.settings);
+  var verdictsState = {};
+  var pendingVerdict = null;
+  var verdictTimer = null;
 
   var PRESETS = {
     memory: {
@@ -178,6 +181,47 @@
     status.textContent = "Inspected locally — no network.";
   }
 
+  function verdictSay(text, isErr) {
+    var el = $("verdictStatus");
+    el.textContent = text;
+    el.style.color = isErr ? "var(--coral)" : "var(--mint)";
+    clearTimeout(verdictSay.t);
+    verdictSay.t = setTimeout(function () { el.textContent = ""; }, 4500);
+  }
+
+  function renderVerdicts(verdicts) {
+    verdictsState = verdicts || {};
+    var keys = Object.keys(verdictsState).sort();
+    $("verdictEmpty").hidden = keys.length > 0;
+    $("verdictClear").disabled = keys.length === 0;
+    $("verdictList").innerHTML = keys.map(function (key) {
+      var useful = verdictsState[key] === "useful";
+      var armed = pendingVerdict === key;
+      return '<div class="verdict-row"><span class="verdict-name">' + esc(key) + '</span>' +
+        '<span class="verdict-tag ' + (useful ? "useful" : "useless") + '">' + (useful ? "👍 useful" : "👎 useless") + '</span>' +
+        '<button class="verdict-remove ' + (armed ? "armed" : "") + '" type="button" data-verdict-remove="' + esc(key) + '">' +
+        (armed ? "Sure?" : "Remove") + '</button></div>';
+    }).join("");
+  }
+
+  function loadVerdicts() {
+    chrome.storage.local.get(["channelVerdicts"], function (s) {
+      void chrome.runtime.lastError;
+      renderVerdicts(s.channelVerdicts || {});
+    });
+  }
+
+  function removeVerdict(key) {
+    var next = Object.assign({}, verdictsState);
+    delete next[key];
+    chrome.storage.local.set({ channelVerdicts: next }, function () {
+      if (chrome.runtime.lastError) { verdictSay(chrome.runtime.lastError.message, true); return; }
+      pendingVerdict = null;
+      renderVerdicts(next);
+      verdictSay("Removed. Open YouTube tabs update instantly.");
+    });
+  }
+
   function fill(s) {
     var st = Object.assign({}, D.settings, s.ytfSettings || {});
     currentSettings = st;
@@ -245,7 +289,7 @@
   function exportJson() {
     chrome.storage.sync.get(KEYS, function (s) {
       var data = {
-        focusSuite: "3.2",
+        focusSuite: "3.3",
         settings: Object.assign({}, D.settings, s.ytfSettings || {}),
         allowed: s.ytfAllowed || D.allowed, good: s.ytfGood || D.good, blocked: s.ytfBlocked || D.blocked
       };
@@ -285,10 +329,45 @@
   ["inspectTitle", "inspectUrl"].forEach(function (id) {
     $(id).addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); inspect(); } });
   });
+  $("verdictList").addEventListener("click", function (e) {
+    var btn = e.target.closest("[data-verdict-remove]");
+    if (!btn) return;
+    var key = btn.getAttribute("data-verdict-remove");
+    if (pendingVerdict !== key) {
+      pendingVerdict = key;
+      renderVerdicts(verdictsState);
+      clearTimeout(verdictTimer);
+      verdictTimer = setTimeout(function () {
+        pendingVerdict = null;
+        renderVerdicts(verdictsState);
+      }, 4000);
+      return;
+    }
+    clearTimeout(verdictTimer);
+    removeVerdict(key);
+  });
+  $("verdictClear").addEventListener("click", function () {
+    var count = Object.keys(verdictsState).length;
+    if (!count) return;
+    if (!confirm("Clear all " + count + " channel verdict" + (count === 1 ? "" : "s") +
+      "? Useful channels will no longer be forced into the feed; useless channels will no longer be hidden.")) return;
+    chrome.storage.local.set({ channelVerdicts: {} }, function () {
+      if (chrome.runtime.lastError) { verdictSay(chrome.runtime.lastError.message, true); return; }
+      pendingVerdict = null;
+      renderVerdicts({});
+      verdictSay("All channel verdicts cleared.");
+    });
+  });
+  try {
+    chrome.storage.onChanged.addListener(function (changes, area) {
+      if (area === "local" && changes.channelVerdicts) loadVerdicts();
+    });
+  } catch (e) { /* live updates are a bonus */ }
   $("save").addEventListener("click", save);
   $("reset").addEventListener("click", reset);
   $("export").addEventListener("click", exportJson);
   $("importBtn").addEventListener("click", function () { $("importFile").click(); });
   $("importFile").addEventListener("change", function (e) { if (e.target.files[0]) importJson(e.target.files[0]); e.target.value = ""; });
   load();
+  loadVerdicts();
 })();

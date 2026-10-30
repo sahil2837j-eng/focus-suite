@@ -23,8 +23,9 @@ try { importScripts("yt-defaults.js", "yt-engine.js", "content-classifier.js"); 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const BLOCK_MS = DAY_MS; // the one and only automatic block term
 const POLICY_VERSION = "2.0"; // block policy: 24h, 7/7, no lift — carried unchanged into the Suite
-const SUITE_VERSION = "3.2.0";
+const SUITE_VERSION = "3.3.0";
 const SHIELD_DAYS = 14;
+const SHIELD_CATS = ["education", "memory_cognitive", "self_improvement", "entertainment", "unknown", "adult_18plus"];
 const FLUSH_MS = 30 * 1000;
 const MAX_GAP_MS = 3 * 60 * 1000; // gaps longer than this are sleep/lock: discarded
 const IDLE_SECONDS = 60;
@@ -115,7 +116,7 @@ async function getAll() {
     "blockedChannels", "pathRules", "prod", "hours", "studyHabit",
     "aiSettings", "digestPending", "blockLog", "trackingEnabled",
     "digestEnabled", "detox", "ytBlock", "lastSeenAt", "policyVersion",
-    "seededRulesV1", "theaterNudge", "detoxAppliedFor"
+    "seededRulesV1", "theaterNudge", "detoxAppliedFor", "shield"
   ]);
 }
 
@@ -701,19 +702,32 @@ function classifyVideo(title, channel, isShorts, verdicts) {
 }
 
 /* "Shielded today": what YouTube Focus hid or blocked for you, reported by
-   the content script in small batches. Pure counters — no titles, no URLs. */
-async function recordShield(hidden, shorts, adult) {
+   the content script in small batches. Pure counters — no titles, no URLs.
+   `cats` is the classifier category mix of those filtered tiles; older days
+   without it still render because every reader defaults missing keys to 0. */
+function normalizeShieldCats(cats) {
+  const out = {};
+  for (const key of SHIELD_CATS) {
+    out[key] = Math.max(0, Math.min(500, Math.round((cats && cats[key]) || 0)));
+  }
+  return out;
+}
+async function recordShield(hidden, shorts, adult, cats) {
   const h = Math.max(0, Math.min(500, Math.round(hidden || 0)));
   const sh = Math.max(0, Math.min(500, Math.round(shorts || 0)));
   const ad = Math.max(0, Math.min(500, Math.round(adult || 0)));
-  if (!h && !sh && !ad) return;
+  const c = normalizeShieldCats(cats);
+  if (!h && !sh && !ad && !SHIELD_CATS.some((key) => c[key] > 0)) return;
   const s = await sget(["shield"]);
   const shield = s.shield || {};
   const date = todayKey();
-  shield[date] = shield[date] || { hidden: 0, shorts: 0, adult: 0 };
+  shield[date] = shield[date] || { hidden: 0, shorts: 0, adult: 0, cats: {} };
   shield[date].hidden = (shield[date].hidden || 0) + h;
   shield[date].shorts = (shield[date].shorts || 0) + sh;
   shield[date].adult = (shield[date].adult || 0) + ad;
+  const dayCats = shield[date].cats || {};
+  for (const key of SHIELD_CATS) dayCats[key] = (dayCats[key] || 0) + c[key];
+  shield[date].cats = dayCats;
   const keepFrom = addDaysKey(date, -SHIELD_DAYS);
   for (const k of Object.keys(shield)) if (k < keepFrom) delete shield[k];
   await sset({ shield });
@@ -1060,6 +1074,30 @@ async function getState() {
     date: d,
     minutes: Object.values(stats[d] || {}).reduce((a, v) => a + Math.round(v / 60), 0)
   }));
+
+  const shieldAll = s.shield || {};
+  const shield7 = last7.map((date) => {
+    const day = shieldAll[date] || {};
+    const cats = {};
+    for (const key of SHIELD_CATS) cats[key] = (day.cats && day.cats[key]) || 0;
+    return {
+      date,
+      hidden: day.hidden || 0,
+      shorts: day.shorts || 0,
+      adult: day.adult || 0,
+      cats
+    };
+  });
+  const shieldTotals = { hidden: 0, shorts: 0, adult: 0, cats: {} };
+  for (const key of SHIELD_CATS) shieldTotals.cats[key] = 0;
+  for (const day of shield7) {
+    shieldTotals.hidden += day.hidden;
+    shieldTotals.shorts += day.shorts;
+    shieldTotals.adult += day.adult;
+    for (const key of SHIELD_CATS) shieldTotals.cats[key] += day.cats[key] || 0;
+  }
+  const todayShield = shield7[shield7.length - 1];
+
   const siteWeek = {};
   for (const e of weekList) {
     siteWeek[e.domain] = last7.map((d) => Math.round(((stats[d] || {})[e.domain] || 0) / 60));
@@ -1145,7 +1183,9 @@ async function getState() {
     },
     digestEnabled: !!s.digestEnabled,
     suite: SUITE_VERSION,
-    shield: ((await sget(["shield"])).shield || {})[today] || { hidden: 0, shorts: 0, adult: 0 },
+    shield: todayShield,
+    shield7,
+    shieldTotals,
     limits: { maxBlocklist: MAX_BLOCKLIST, maxChannels: MAX_CHANNELS, maxPathRules: MAX_PATH_RULES }
   };
 }
@@ -1338,7 +1378,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           break;
 
         case "ytf-shield":
-          await recordShield(msg.hidden, msg.shorts, msg.adult);
+          await recordShield(msg.hidden, msg.shorts, msg.adult, msg.cats);
           sendResponse({ ok: true });
           break;
 

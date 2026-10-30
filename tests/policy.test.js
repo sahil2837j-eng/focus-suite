@@ -89,6 +89,24 @@ check("YouTube page loads channel verdicts from local storage",
 check("channel verdicts override keywords but never adult hard blocks",
   focusScript.includes("channel-verdict") && focusScript.indexOf("result.category === \"adult_18plus\"") < focusScript.indexOf("channelVerdict === \"useful\""));
 
+console.log("7-day report + verdict manager");
+check("shield days store the six classifier categories",
+  bg.includes("SHIELD_CATS") && bg.includes("normalizeShieldCats") && bg.includes("shield[date].cats"));
+check("worker accepts category counters with the shield batch",
+  bg.includes("recordShield(msg.hidden, msg.shorts, msg.adult, msg.cats)"));
+check("worker exposes 7-day shield history and totals",
+  bg.includes("const shield7") && bg.includes("const shieldTotals") && bg.includes("shieldTotals,"));
+check("content script sends category counters",
+  focusScript.includes("emptyCats()") && focusScript.includes("cats: pending.cats") && focusScript.includes("pending.cats[cat]"));
+check("popup renders the 7-day classifier report",
+  popup.includes("7-day classifier report") && popup.includes("shieldTotals") && popup.includes("memory_cognitive"));
+check("popup favicon fallback is CSP-safe",
+  popup.includes("data-favicon") && popup.includes('addEventListener("error"') && !/\son[a-z]+\s*=/.test(popup));
+check("options lists and removes channel verdicts",
+  options.includes("verdictList") && options.includes("loadVerdicts") && options.includes("data-verdict-remove"));
+check("verdict removal is a deliberate second click",
+  options.includes("pendingVerdict") && options.includes("Sure?") && options.includes("verdictTimer"));
+
 if (failed) {
   console.error(`\n${failed} policy test(s) failed. 2.0 means: 24h, 7/7, clock only.`);
   process.exit(1);
